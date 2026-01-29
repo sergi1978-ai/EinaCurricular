@@ -3,10 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import { AiResponse, CurriculumItem, Session } from "../types";
 
 /**
- * Models optimitzats per evitar bloquejos de quota (429)
- * Utilitzem la sèrie 2.5 Lite per a velocitat i la 3 Flash per a intel·ligència amb més RPM
+ * Models corregits segons l'especificació oficial per evitar l'error 404
  */
-const SIMPLE_MODEL = 'gemini-2.5-flash-lite-latest';
+const SIMPLE_MODEL = 'gemini-flash-lite-latest';
 const COMPLEX_MODEL = 'gemini-3-flash-preview';
 
 /**
@@ -30,7 +29,7 @@ async function callGemini(prompt: string, model: string, isJson: boolean = false
     throw new Error("API_KEY_REQUIRED");
   }
 
-  const MAX_RETRIES = 4; // Un reintent més per seguretat
+  const MAX_RETRIES = 4;
 
   try {
     const ai = new GoogleGenAI({ apiKey });
@@ -51,13 +50,18 @@ async function callGemini(prompt: string, model: string, isJson: boolean = false
     
     // Si l'error és de quota (429)
     if (error.message?.includes("429") && retryCount < MAX_RETRIES) {
-      // Espera exponencial amb jitter (per evitar col·lisions)
       const jitter = Math.random() * 500;
       const waitTime = (Math.pow(2, retryCount) * 1500) + jitter; 
       
       console.warn(`Límit assolit. Reintentant en ${(waitTime/1000).toFixed(1)}s...`);
       await sleep(waitTime);
       return callGemini(prompt, model, isJson, retryCount + 1);
+    }
+
+    // Si el model no es troba (404), ho intentem amb un model de seguretat (flash)
+    if (error.message?.includes("404") && model !== COMPLEX_MODEL) {
+      console.warn(`Model ${model} no trobat. Provant amb ${COMPLEX_MODEL}...`);
+      return callGemini(prompt, COMPLEX_MODEL, isJson, retryCount);
     }
 
     if (error.message?.includes("429")) throw new Error("RATE_LIMIT_EXCEEDED");
@@ -71,7 +75,6 @@ export const getTitleOptions = async (subjects: string[], grade: string, keyword
   Respon EXCLUSIVAMENT amb JSON: {"options": [{"title": "...", "style": "..."}]}`;
 
   try {
-    // Model Lite per a peticions ràpides i estalvi de quota
     const jsonStr = await callGemini(prompt, SIMPLE_MODEL, true);
     const data = JSON.parse(jsonStr);
     return data.options || [];
@@ -91,7 +94,6 @@ export const generateDetailedActivities = async (title: string, description: str
   Respon EXCLUSIVAMENT amb JSON: {"sessions": [{"title": "...", "objective": "...", "steps": "...", "dua": "...", "methodology": "...", "evaluation": "..."}]}`;
 
   try {
-    // Utilitzem el 3 Flash que és més robust per a tasques llargues
     const jsonStr = await callGemini(prompt, COMPLEX_MODEL, true);
     const data = JSON.parse(jsonStr);
     return data.sessions || [];
