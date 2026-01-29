@@ -91,13 +91,13 @@ export default function App() {
   };
 
   const handleGeminiError = (e: any) => {
-    console.error(e);
-    if (e.message === "RATE_LIMIT_EXCEEDED") {
-      showNotification("Quota saturada. El sistema està esperant uns segons per continuar. No tanquis la finestra.", "error");
-    } else if (e.message === "API_KEY_REQUIRED") {
-      showNotification("Falta configurar la clau d'API.", "error");
+    console.error("Gemini Error:", e);
+    if (e.message?.includes("429")) {
+      showNotification("Quota saturada. Esperant reintent...", "error");
+    } else if (e.message?.includes("API_KEY_REQUIRED")) {
+      showNotification("Configura la teva API KEY.", "error");
     } else {
-      showNotification("Error de connexió amb la IA. Torna-ho a provar en uns segons.", "error");
+      showNotification("Error de l'IA. Torna-ho a provar en uns moments.", "error");
     }
   };
 
@@ -194,12 +194,9 @@ export default function App() {
     try {
       const contents: Record<string, string> = { ...evaluationToolsContent };
       const criteria = selectedCurriculum.filter(i => i.type === 'criteri');
-      
-      // Crides seqüencials amb retard incrementat per evitar el 429
       for (const t of evaluationTools) {
-        if (!contents[t]) { // Només generem si no existeix ja
+        if (!contents[t]) {
           contents[t] = await generateEvaluationToolContent(t, title, grade, criteria);
-          // Espera de 2 segons entre instruments per seguretat de quota
           await new Promise(r => setTimeout(r, 2000));
         }
       }
@@ -214,13 +211,18 @@ export default function App() {
 
   const handleInspiration = async () => {
     if (inspirationLoading) return;
-    if (selectedSubjectIds.length === 0) return showNotification("Tria una àrea primer.", "error");
+    if (selectedSubjectIds.length === 0) return showNotification("Tria una àrea per poder inspirar-te.", "error");
     setInspirationLoading(true);
     try {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
       const options = await getTitleOptions(subNames, grade, title);
-      setInspirationOptions(options);
-      setShowInspirationModal(true);
+      
+      if (options && options.length > 0) {
+        setInspirationOptions(options);
+        setShowInspirationModal(true);
+      } else {
+        showNotification("No s'han pogut generar idees. Torna-ho a provar.", "error");
+      }
     } catch (e) {
       handleGeminiError(e);
     } finally {
@@ -236,7 +238,7 @@ export default function App() {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
       const desc = await getDescriptionForTitle(opt, subNames, grade);
       setDescription(desc);
-      showNotification("Descripció generada.", "success");
+      showNotification("Descripció generada amb èxit.", "success");
     } catch (e) {
       handleGeminiError(e);
     } finally {
@@ -272,7 +274,7 @@ export default function App() {
         const parsedData = JSON.parse(e.target?.result as string);
         if (window.confirm("Vols substituir les dades actuals per les del fitxer d'importació?")) {
           setActivities(parsedData);
-          showNotification("Dades importades.", "success");
+          showNotification("Dades importades correctament.", "success");
         }
       } catch (error) {
         showNotification("Fitxer no vàlid.", "error");
@@ -356,7 +358,7 @@ export default function App() {
                     onCopy={a => {
                       const copy = {...a, id: generateId(), title: a.title + ' (Còpia)', createdAt: Date.now()};
                       setActivities(p => [copy, ...p]);
-                      showNotification("Còpia creada.", "success");
+                      showNotification("Còpia creada correctament.", "success");
                     }} 
                   />
                 ))}
@@ -417,8 +419,9 @@ export default function App() {
                     </div>
                     <div className="flex gap-4 items-center">
                       <input className="flex-1 text-2xl md:text-4xl font-black outline-none border-b-4 border-slate-50 py-4 focus:border-blue-600 bg-transparent transition-all placeholder:text-slate-100 text-slate-900" placeholder="Escriu el títol aquí..." value={title} onChange={e => setTitle(e.target.value)} />
-                      <button onClick={handleInspiration} disabled={inspirationLoading} className="bg-slate-900 text-white p-5 rounded-2xl hover:bg-black transition-all shadow-xl active:scale-95 disabled:opacity-50">
+                      <button onClick={handleInspiration} disabled={inspirationLoading} className="bg-slate-900 text-white p-5 rounded-2xl hover:bg-black transition-all shadow-xl active:scale-95 disabled:opacity-50 group relative">
                         {inspirationLoading ? <Loader2 size={24} className="animate-spin" /> : <Wand2 size={24} />}
+                        <span className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">Inspira'm!</span>
                       </button>
                     </div>
                   </div>
