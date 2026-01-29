@@ -93,13 +93,15 @@ export default function App() {
   const handleGeminiError = (e: any) => {
     console.error(e);
     if (e.message === "API_KEY_REQUIRED") {
-      showNotification("Falta la clau d'API. Revisa la configuració del servidor.", "error");
+      showNotification("Configuració incompleta: Falta la clau d'API.", "error");
     } else if (e.message === "RATE_LIMIT_EXCEEDED") {
-      showNotification("S'ha superat el límit de crides de l'IA. Espera uns segons.", "error");
+      showNotification("L'IA està saturada de peticions. Espera uns 10 segons i torna-ho a provar.", "error");
     } else if (e.message === "INVALID_API_KEY") {
-      showNotification("La clau d'API de Gemini no és vàlida.", "error");
+      showNotification("La clau d'API de Gemini no és vàlida o ha expirat.", "error");
+    } else if (e.message === "EMPTY_RESPONSE") {
+      showNotification("L'IA ha tornat una resposta buida. Torna-ho a intentar.", "error");
     } else {
-      showNotification("S'ha produït un error en la connexió amb l'IA. Torna-ho a provar.", "error");
+      showNotification("Error de connexió amb l'IA. Revisa la teva connexió a internet.", "error");
     }
   };
 
@@ -129,7 +131,7 @@ export default function App() {
 
     setActivities(prev => [updatedActivity, ...prev.filter(a => a.id !== updatedActivity.id)]);
     setView('dashboard');
-    showNotification("Situació d'Aprenentatge guardada!", "success");
+    showNotification("Situació d'Aprenentatge guardada correctament!", "success");
     resetForm();
   };
 
@@ -141,13 +143,13 @@ export default function App() {
   };
 
   const handleAiCurriculum = async () => {
-    if (!description || selectedSubjectIds.length === 0) return showNotification("Cal descripció i àrees seleccionades.", "error");
+    if (!description || selectedSubjectIds.length === 0) return showNotification("Necessitem una descripció i àrees per analitzar el currículum.", "error");
     setAiLoading(true);
     try {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
       const res = await getCurriculumSuggestions(subNames, grade, description);
       setSuggestions(res);
-      showNotification("Currículum vinculat amb èxit", "success");
+      showNotification("Anàlisi curricular completat", "success");
     } catch (e: any) {
       handleGeminiError(e);
     } finally {
@@ -156,14 +158,14 @@ export default function App() {
   };
 
   const handleGenerateSequence = async () => {
-    if (!title || !description) return showNotification("Omple títol i descripció.", "error");
+    if (!title || !description) return showNotification("Defineix el títol i la descripció abans de generar sessions.", "error");
     setSequenceLoading(true);
     try {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
       const res = await generateDetailedActivities(title, description, grade, subNames, numSessions);
       setDetailedActivities(res);
       setSessionDates(Array(res.length).fill('')); 
-      showNotification("Sessions generades correctament", "success");
+      showNotification("Seqüència de sessions generada", "success");
     } catch (e) {
       handleGeminiError(e);
     } finally {
@@ -172,13 +174,13 @@ export default function App() {
   };
 
   const handleSuggestEvalTools = async () => {
-    if (selectedCurriculum.filter(i => i.type === 'criteri').length === 0) return showNotification("Tria criteris d'avaluació primer.", "error");
+    if (selectedCurriculum.filter(i => i.type === 'criteri').length === 0) return showNotification("Selecciona criteris d'avaluació primer.", "error");
     setEvalLoading(true);
     try {
       const tools = await suggestEvaluationTools(title, grade, selectedCurriculum.filter(i => i.type === 'criteri'));
       setSuggestedEvaluationTools(tools);
       setEvaluationTools(tools); 
-      showNotification("S'han suggerit instruments", "success");
+      showNotification("S'han suggerit instruments d'avaluació", "success");
     } catch (e) {
       handleGeminiError(e);
     } finally {
@@ -187,16 +189,17 @@ export default function App() {
   };
 
   const handleGenerateSelectedToolContent = async () => {
-    if (evaluationTools.length === 0) return showNotification("Selecciona almenys un instrument per generar contingut.", "error");
+    if (evaluationTools.length === 0) return showNotification("Selecciona algun instrument per generar-ne el contingut.", "error");
     setGeneratingToolContent(true);
     try {
       const contents: Record<string, string> = {};
       const criteria = selectedCurriculum.filter(i => i.type === 'criteri');
+      // Fem les crides una a una per evitar col·lapsar la quota si n'hi ha moltes
       for (const t of evaluationTools) {
         contents[t] = await generateEvaluationToolContent(t, title, grade, criteria);
       }
       setEvaluationToolsContent(contents);
-      showNotification("Contingut d'avaluació generat", "success");
+      showNotification("Contingut d'avaluació creat correctament", "success");
     } catch (e) {
       handleGeminiError(e);
     } finally {
@@ -205,7 +208,7 @@ export default function App() {
   };
 
   const handleInspiration = async () => {
-    if (selectedSubjectIds.length === 0) return showNotification("Tria una àrea primer.", "error");
+    if (selectedSubjectIds.length === 0) return showNotification("Selecciona almenys una àrea per buscar inspiració.", "error");
     setInspirationLoading(true);
     try {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
@@ -227,7 +230,7 @@ export default function App() {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
       const desc = await getDescriptionForTitle(opt, subNames, grade);
       setDescription(desc);
-      showNotification("Descripció generada amb èxit", "success");
+      showNotification("Proposta de descripció generada", "success");
     } catch (e) {
       handleGeminiError(e);
     } finally {
@@ -239,7 +242,7 @@ export default function App() {
     if (newCustomTool.trim() && !evaluationTools.includes(newCustomTool.trim())) {
       setEvaluationTools(prev => [...prev, newCustomTool.trim()]);
       setNewCustomTool('');
-      showNotification("Instrument afegit", "success");
+      showNotification("Instrument personalitzat afegit", "success");
     }
   };
 
@@ -260,7 +263,7 @@ export default function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showNotification("Dades exportades", "success");
+    showNotification("Còpia de seguretat exportada", "success");
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -270,12 +273,12 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const parsedData = JSON.parse(e.target?.result as string);
-        if (window.confirm("Això substituirà les teves programacions actuals. Vols continuar?")) {
+        if (window.confirm("Atenució: Això substituirà les teves dades actuals. Vols importar el fitxer?")) {
           setActivities(parsedData);
-          showNotification("Dades importades correctament", "success");
+          showNotification("Dades importades amb èxit", "success");
         }
       } catch (error) {
-        showNotification("Format de fitxer invàlid.", "error");
+        showNotification("El fitxer no té un format vàlid.", "error");
       }
     };
     reader.readAsText(file);
@@ -303,7 +306,7 @@ export default function App() {
                 onClick={() => setView(v as ViewType)} 
                 className={`text-[11px] font-black uppercase tracking-widest transition-all relative py-2 ${view === v ? 'text-blue-600' : 'text-slate-400 hover:text-slate-900'}`}
               >
-                {v === 'dashboard' ? 'El meu taulell' : v === 'calendar' ? 'Calendari' : 'Anàlisi'}
+                {v === 'dashboard' ? 'Taulell' : v === 'calendar' ? 'Calendari' : 'Estadístiques'}
                 {view === v && <span className="absolute -bottom-1 left-0 w-full h-1 bg-blue-600 rounded-full"></span>}
               </button>
             ))}
@@ -316,15 +319,15 @@ export default function App() {
           <div className="animate-fade-in">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 bg-white p-8 rounded-[2.5rem] border border-blue-50 shadow-sm">
               <div>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">Programació d'Aula</h1>
-                <p className="text-slate-500 font-bold mt-1">Tens <span className="text-blue-600">{activities.length}</span> Situacions d'Aprenentatge actives.</p>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight text-center md:text-left">Programació d'Aula</h1>
+                <p className="text-slate-500 font-bold mt-1 text-center md:text-left">Gestió de <span className="text-blue-600 font-black">{activities.length}</span> Situacions d'Aprenentatge.</p>
               </div>
-              <div className="flex gap-3 w-full md:w-auto">
-                <div className="relative flex-grow md:flex-grow-0">
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                <div className="relative flex-grow">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input type="text" placeholder="Buscar SA..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-slate-50 border-2 border-slate-100 pl-11 pr-5 py-3 rounded-2xl text-sm font-bold outline-none focus:border-blue-400 focus:bg-white w-full md:w-64 transition-all" />
+                  <input type="text" placeholder="Cerca pel títol..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-slate-50 border-2 border-slate-100 pl-11 pr-5 py-3 rounded-2xl text-sm font-bold outline-none focus:border-blue-400 focus:bg-white w-full md:w-64 transition-all" />
                 </div>
-                <button onClick={() => { resetForm(); setView('create'); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 hover:-translate-y-1 transition-all active:scale-95"><PlusCircle size={18} /> Nova SA</button>
+                <button onClick={() => { resetForm(); setView('create'); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-200 flex items-center justify-center gap-2 hover:bg-blue-700 hover:-translate-y-1 transition-all active:scale-95"><PlusCircle size={18} /> Crear SA</button>
               </div>
             </div>
             
@@ -333,8 +336,8 @@ export default function App() {
                 <div className="bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 text-blue-200 animate-pulse">
                   <Sparkles size={48} />
                 </div>
-                <h3 className="text-2xl font-black text-slate-400">Encara no tens cap SA</h3>
-                <p className="text-slate-400 mt-2 font-medium max-w-sm mx-auto">Comença a dissenyar el teu curs amb l'ajuda de la IA curricular.</p>
+                <h3 className="text-2xl font-black text-slate-400">No s'han trobat programacions</h3>
+                <p className="text-slate-400 mt-2 font-medium max-w-sm mx-auto">Crea la teva primera Situació d'Aprenentatge o utilitza el cercador.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -356,7 +359,7 @@ export default function App() {
                     onCopy={a => {
                       const copy = {...a, id: generateId(), title: a.title + ' (Còpia)', createdAt: Date.now()};
                       setActivities(p => [copy, ...p]);
-                      showNotification("SA duplicada!", "success");
+                      showNotification("Programació duplicada", "success");
                     }} 
                   />
                 ))}
@@ -370,9 +373,9 @@ export default function App() {
 
         {view === 'create' && (
           <div className="max-w-6xl mx-auto bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-blue-50 animate-scale-in flex flex-col min-h-[85vh]">
-            <div className="flex border-b border-blue-50 bg-slate-50/50 p-3 gap-2">
+            <div className="flex border-b border-blue-50 bg-slate-50/50 p-3 gap-2 overflow-x-auto">
               {Object.keys(TAB_LABELS).map(t => (
-                <button key={t} onClick={() => setActiveTab(t as CreateTab)} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:bg-white/50'}`}>{TAB_LABELS[t]}</button>
+                <button key={t} onClick={() => setActiveTab(t as CreateTab)} className={`flex-1 min-w-[120px] py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:bg-white/50'}`}>{TAB_LABELS[t]}</button>
               ))}
             </div>
             
@@ -381,7 +384,7 @@ export default function App() {
                 <div className="space-y-16 animate-fade-in">
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
                     <div className="md:col-span-4 space-y-4">
-                      <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">Curs escolar</label>
+                      <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">Nivell Educatiu</label>
                       <select className="w-full bg-slate-50 p-5 rounded-2xl font-black text-lg outline-none border border-slate-100 focus:border-blue-400 hover:bg-white transition-all shadow-sm text-slate-700 appearance-none cursor-pointer" value={grade} onChange={e => setGrade(e.target.value as Grade)}>
                         {GRADES.map(g => <option key={g} value={g}>{g} de Primària</option>)}
                       </select>
@@ -389,7 +392,7 @@ export default function App() {
 
                     <div className="md:col-span-8 space-y-10">
                       <div>
-                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-6">Àrees i Competències</label>
+                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-6">Àrees Implicades</label>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           {SUBJECTS.map(s => (
                             <button 
@@ -413,10 +416,10 @@ export default function App() {
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 ml-2">
                        <Flag size={20} className="text-blue-600" />
-                       <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">Títol de la SA</label>
+                       <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">Nom de la Situació d'Aprenentatge</label>
                     </div>
                     <div className="flex gap-4 items-center">
-                      <input className="flex-1 text-4xl font-black outline-none border-b-4 border-slate-50 py-4 focus:border-blue-600 bg-transparent transition-all placeholder:text-slate-100 text-slate-900" placeholder="Escriu el títol aquí..." value={title} onChange={e => setTitle(e.target.value)} />
+                      <input className="flex-1 text-2xl md:text-4xl font-black outline-none border-b-4 border-slate-50 py-4 focus:border-blue-600 bg-transparent transition-all placeholder:text-slate-100 text-slate-900" placeholder="Ex: El misteri de l'aigua..." value={title} onChange={e => setTitle(e.target.value)} />
                       <button onClick={handleInspiration} disabled={inspirationLoading} className="bg-slate-900 text-white p-5 rounded-2xl hover:bg-black transition-all shadow-xl active:scale-95 disabled:opacity-50">
                         {inspirationLoading ? <Loader2 size={24} className="animate-spin" /> : <Wand2 size={24} />}
                       </button>
@@ -426,22 +429,22 @@ export default function App() {
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 ml-2">
                        <Target size={20} className="text-blue-600" />
-                       <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">Descripció i Contextualització</label>
+                       <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">Descripció, Context i Producte Final</label>
                     </div>
                     <div className="relative">
                       {isGeneratingDescription && (
-                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-blue-200">
+                        <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-blue-200">
                           <Loader2 className="animate-spin text-blue-600 mb-4" size={40} />
-                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-600">L'IA està redactant la proposta...</span>
+                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-600 animate-pulse">L'IA està redactant la proposta...</span>
                         </div>
                       )}
-                      <textarea className="w-full bg-slate-50 p-10 rounded-[2.5rem] font-bold min-h-[300px] outline-none border border-slate-100 focus:border-blue-200 transition-all leading-relaxed text-slate-700 text-lg shadow-inner placeholder:text-slate-200" placeholder="Descriu el context, el repte inicial i el producte final que es vol aconseguir..." value={description} onChange={e => setDescription(e.target.value)} />
+                      <textarea className="w-full bg-slate-50 p-10 rounded-[2.5rem] font-bold min-h-[300px] outline-none border border-slate-100 focus:border-blue-200 transition-all leading-relaxed text-slate-700 text-lg shadow-inner placeholder:text-slate-200" placeholder="Descriu breument de què tracta la SA, quin és el repte inicial i quin serà el producte final..." value={description} onChange={e => setDescription(e.target.value)} />
                     </div>
                   </div>
 
                   <div className="flex justify-between items-center pt-10 border-t border-slate-50">
-                    <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase tracking-widest text-[10px] transition-colors"><ArrowLeft size={16} /> Tornar enrere</button>
-                    <button onClick={() => setActiveTab('curriculum')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Continuar al currículum <ChevronRight size={16} /></button>
+                    <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase tracking-widest text-[10px] transition-colors"><ArrowLeft size={16} /> Cancel·lar</button>
+                    <button onClick={() => setActiveTab('curriculum')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Següent: Currículum <ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
@@ -453,7 +456,7 @@ export default function App() {
                       <div className="bg-white/20 p-4 rounded-2xl text-white"><Sparkles size={32} /></div>
                       <div>
                         <h4 className="font-black text-white text-2xl tracking-tight">Vincle Curricular Intel·ligent</h4>
-                        <p className="text-blue-100 text-sm font-bold">L'IA seleccionarà els elements del Decret 175/2022 més adients.</p>
+                        <p className="text-blue-100 text-sm font-bold">L'IA cercarà els elements del Decret 175/2022 més adients per a la teva SA.</p>
                       </div>
                     </div>
                     <button onClick={handleAiCurriculum} disabled={aiLoading} className="bg-white text-blue-900 px-8 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-blue-50 shadow-lg disabled:opacity-50 transition-all">
@@ -469,13 +472,13 @@ export default function App() {
                     />
                   ) : (
                     <div className="py-40 text-center border-2 border-dashed border-blue-50 rounded-[3rem] bg-white">
-                       <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Clica el botó per obtenir suggeriments basats en la teva descripció</p>
+                       <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Fes clic a "Analitzar Currículum" per obtenir suggeriments de la IA</p>
                     </div>
                   )}
 
                   <div className="flex justify-between items-center pt-10 border-t border-slate-50">
                     <button onClick={() => setActiveTab('basics')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
-                    <button onClick={() => setActiveTab('sequence')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Dissenyar Sessions <ChevronRight size={16} /></button>
+                    <button onClick={() => setActiveTab('sequence')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Següent: Sessions <ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
@@ -485,7 +488,7 @@ export default function App() {
                   <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-3 bg-white p-4 rounded-xl shadow-sm border border-slate-50">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Sessions:</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Nº Sessions:</label>
                         <input type="number" value={numSessions} onChange={e => setNumSessions(Number(e.target.value))} className="w-16 bg-slate-50 p-2 rounded-lg font-black text-center outline-none border border-slate-100 focus:border-blue-400 text-lg" />
                       </div>
                     </div>
@@ -497,10 +500,10 @@ export default function App() {
                   <div className="space-y-10">
                     {detailedActivities.length > 0 ? detailedActivities.map((session, idx) => (
                       <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden hover:border-blue-100 transition-all shadow-sm">
-                        <div className="bg-slate-900 px-10 py-6 flex justify-between items-center text-white">
-                          <div className="flex items-center gap-4">
+                        <div className="bg-slate-900 px-10 py-6 flex flex-col md:flex-row justify-between items-start md:items-center text-white gap-4">
+                          <div className="flex items-center gap-4 w-full">
                             <span className="bg-white/10 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest">Sessió {idx + 1}</span>
-                            <input className="bg-transparent font-black text-white text-xl outline-none border-b border-transparent focus:border-blue-400 placeholder:opacity-40 w-[400px]" placeholder="Títol de la sessió..." value={session.title} onChange={e => {
+                            <input className="bg-transparent font-black text-white text-xl outline-none border-b border-transparent focus:border-blue-400 placeholder:opacity-40 flex-1" placeholder="Títol de la sessió..." value={session.title} onChange={e => {
                               const copy = [...detailedActivities];
                               copy[idx].title = e.target.value;
                               setDetailedActivities(copy);
@@ -530,7 +533,7 @@ export default function App() {
                               />
                             </div>
                             <div className="md:col-span-2 space-y-4">
-                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Pas a pas del desenvolupament</span>
+                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Desenvolupament (Activitats)</span>
                               <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-base font-medium text-slate-700 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner leading-relaxed" rows={8} value={session.steps} onChange={e => {
                                 const copy = [...detailedActivities];
                                 copy[idx].steps = e.target.value;
@@ -538,7 +541,7 @@ export default function App() {
                               }} />
                             </div>
                             <div className="md:col-span-2 space-y-4">
-                              <span className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-2 flex items-center gap-2"><Sparkles size={14} /> Mesures DUA (Inclusió)</span>
+                              <span className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-2 flex items-center gap-2"><Sparkles size={14} /> Pautes i Mesures DUA</span>
                               <textarea className="w-full bg-indigo-50/30 p-8 rounded-[2rem] text-base font-bold text-indigo-900/70 outline-none focus:bg-white transition-all border border-indigo-100 focus:border-indigo-400 shadow-inner leading-relaxed italic" rows={4} value={session.dua} onChange={e => {
                                 const copy = [...detailedActivities];
                                 copy[idx].dua = e.target.value;
@@ -549,14 +552,14 @@ export default function App() {
                       </div>
                     )) : (
                       <div className="py-40 text-center border-2 border-dashed border-slate-50 rounded-[3rem] bg-white">
-                        <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Genera la seqüència amb IA o comença a afegir sessions manualment</p>
+                        <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Utilitza la IA per dissenyar la seqüència o afegeix sessions manualment</p>
                       </div>
                     )}
                   </div>
 
                   <div className="flex justify-between items-center pt-10 border-t border-slate-50">
                     <button onClick={() => setActiveTab('curriculum')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
-                    <button onClick={() => setActiveTab('evaluation')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Configurar Avaluació <ChevronRight size={16} /></button>
+                    <button onClick={() => setActiveTab('evaluation')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Següent: Avaluació <ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
@@ -567,7 +570,7 @@ export default function App() {
                     <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                       <div className="flex-1">
                         <h4 className="font-black text-2xl text-blue-900 tracking-tight">Estratègia d'Avaluació</h4>
-                        <p className="text-blue-700 font-bold text-sm">Selecciona o afegeix els instruments que utilitzaràs.</p>
+                        <p className="text-blue-700 font-bold text-sm">Selecciona els instruments que t'ajudaran a avaluar els criteris triats.</p>
                       </div>
                       <button onClick={handleSuggestEvalTools} disabled={evalLoading} className="bg-blue-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all">
                         {evalLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Suggerir Instruments
@@ -577,7 +580,7 @@ export default function App() {
                     {suggestedEvaluationTools.length > 0 && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {suggestedEvaluationTools.map((tool, idx) => (
-                          <label key={idx} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${evaluationTools.includes(tool) ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-50 hover:border-blue-200'}`}>
+                          <label key={idx} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${evaluationTools.includes(tool) ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-slate-50 hover:border-blue-200'}`}>
                             <input 
                               type="checkbox" 
                               checked={evaluationTools.includes(tool)} 
@@ -599,19 +602,19 @@ export default function App() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {evaluationTools.map((tool, idx) => (
-                      <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 hover:border-blue-200 transition-all shadow-sm flex flex-col">
+                      <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 hover:border-blue-200 transition-all shadow-sm flex flex-col min-h-[400px]">
                         <div className="flex justify-between items-center mb-6">
                           <h5 className="font-black text-blue-700 uppercase tracking-widest text-[10px] bg-blue-50 px-4 py-2 rounded-lg">{tool}</h5>
                           <button onClick={() => setEvaluationTools(p => p.filter(t => t !== tool))} className="text-slate-200 hover:text-red-500 transition-colors"><X size={20} /></button>
                         </div>
-                        <div className="prose prose-slate max-w-none text-slate-800 font-medium overflow-auto max-h-[400px] text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: evaluationToolsContent[tool] || '<p class="text-slate-300 italic animate-pulse">L\'IA està preparant l\'instrument...</p>' }} />
+                        <div className="prose prose-slate max-w-none text-slate-800 font-medium overflow-auto max-h-[500px] text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: evaluationToolsContent[tool] || '<p class="text-slate-300 italic animate-pulse">Prement el botó superior, l\'IA redactarà aquest instrument...</p>' }} />
                       </div>
                     ))}
                   </div>
 
                   <div className="flex justify-between items-center pt-10 border-t border-slate-50">
                     <button onClick={() => setActiveTab('sequence')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
-                    <button onClick={handleSave} className="bg-blue-600 text-white px-16 py-6 rounded-[2rem] font-black uppercase text-[12px] tracking-[0.2em] flex items-center gap-4 hover:bg-blue-700 shadow-2xl shadow-blue-200 active:scale-95 transition-all"><Save size={24} /> Guardar Programació</button>
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-16 py-6 rounded-[2rem] font-black uppercase text-[12px] tracking-[0.2em] flex items-center gap-4 hover:bg-blue-700 shadow-2xl shadow-blue-200 active:scale-95 transition-all"><Save size={24} /> Guardar Situació d'Aprenentatge</button>
                   </div>
                 </div>
               )}
@@ -628,8 +631,8 @@ export default function App() {
               <div className="flex items-center gap-6">
                 <div className="bg-blue-100 text-blue-600 p-4 rounded-2xl"><Lightbulb size={32} /></div>
                 <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Inspiració</h2>
-                  <p className="text-slate-400 font-bold">Tria un focus per a la teva SA.</p>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Idees i Enfocaments</h2>
+                  <p className="text-slate-400 font-bold">Tria una proposta per començar a treballar.</p>
                 </div>
               </div>
               <button onClick={() => setShowInspirationModal(false)} className="text-slate-300 hover:text-slate-900 transition-colors"><X size={32} /></button>
@@ -673,8 +676,8 @@ export default function App() {
              <School size={24} />
              <div className="h-8 w-px bg-slate-100"></div>
              <div className="flex items-center gap-2">
-               <button onClick={handleExport} className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Download size={20} /></button>
-               <button onClick={() => fileInputRef.current?.click()} className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Upload size={20} /></button>
+               <button onClick={handleExport} title="Exportar dades" className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Download size={20} /></button>
+               <button onClick={() => fileInputRef.current?.click()} title="Importar dades" className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Upload size={20} /></button>
                <input type="file" ref={fileInputRef} onChange={handleImport} accept="application/json" style={{ display: 'none' }} />
              </div>
           </div>
