@@ -22,21 +22,20 @@ import ActivityDetailsModal from './components/ActivityDetailsModal';
 import CalendarView from './components/CalendarView';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { 
-  PlusCircle, BookOpen, ArrowLeft, Loader2, Save, School, Wand2, X, Sparkles, ChevronRight, Check, Search, Lightbulb, Flag, Target, Compass, GraduationCap, 
-  Upload, Download, SquarePlus
+  PlusCircle, ArrowLeft, Loader2, Save, School, Wand2, X, Sparkles, ChevronRight, Check, Search, Lightbulb, Flag, Target, Compass, GraduationCap, 
+  Upload, Download, SquarePlus, AlertCircle
 } from 'lucide-react';
 
-// Define view and tab states
 type ViewType = 'dashboard' | 'calendar' | 'analytics' | 'create';
 type CreateTab = 'basics' | 'curriculum' | 'sequence' | 'evaluation';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const TAB_LABELS: Record<string, string> = {
-  basics: 'Informació Bàsica',
-  curriculum: 'Vincle Curricular',
-  sequence: 'Seqüència Didàctica',
-  evaluation: 'Avaluació'
+  basics: 'Pas 1: Informació',
+  curriculum: 'Pas 2: Currículum',
+  sequence: 'Pas 3: Sessions',
+  evaluation: 'Pas 4: Avaluació'
 };
 
 export default function App() {
@@ -88,7 +87,20 @@ export default function App() {
 
   const showNotification = (message: string, type: 'error' | 'success' = 'error') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleGeminiError = (e: any) => {
+    console.error(e);
+    if (e.message === "API_KEY_REQUIRED") {
+      showNotification("Falta la clau d'API. Revisa la configuració del servidor.", "error");
+    } else if (e.message === "RATE_LIMIT_EXCEEDED") {
+      showNotification("S'ha superat el límit de crides de l'IA. Espera uns segons.", "error");
+    } else if (e.message === "INVALID_API_KEY") {
+      showNotification("La clau d'API de Gemini no és vàlida.", "error");
+    } else {
+      showNotification("S'ha produït un error en la connexió amb l'IA. Torna-ho a provar.", "error");
+    }
   };
 
   const handleSave = () => {
@@ -117,7 +129,7 @@ export default function App() {
 
     setActivities(prev => [updatedActivity, ...prev.filter(a => a.id !== updatedActivity.id)]);
     setView('dashboard');
-    showNotification("SA guardada correctament", "success");
+    showNotification("Situació d'Aprenentatge guardada!", "success");
     resetForm();
   };
 
@@ -137,7 +149,7 @@ export default function App() {
       setSuggestions(res);
       showNotification("Currículum vinculat amb èxit", "success");
     } catch (e: any) {
-      showNotification("Error de l'IA. Revisa la clau d'API.", "error");
+      handleGeminiError(e);
     } finally {
       setAiLoading(false);
     }
@@ -151,9 +163,9 @@ export default function App() {
       const res = await generateDetailedActivities(title, description, grade, subNames, numSessions);
       setDetailedActivities(res);
       setSessionDates(Array(res.length).fill('')); 
-      showNotification("Sessions generades", "success");
+      showNotification("Sessions generades correctament", "success");
     } catch (e) {
-      showNotification("Error de l'IA.", "error");
+      handleGeminiError(e);
     } finally {
       setSequenceLoading(false);
     }
@@ -166,9 +178,9 @@ export default function App() {
       const tools = await suggestEvaluationTools(title, grade, selectedCurriculum.filter(i => i.type === 'criteri'));
       setSuggestedEvaluationTools(tools);
       setEvaluationTools(tools); 
-      showNotification("Instruments suggerits", "success");
+      showNotification("S'han suggerit instruments", "success");
     } catch (e) {
-      showNotification("Error de l'IA suggerint instruments.", "error");
+      handleGeminiError(e);
     } finally {
       setEvalLoading(false);
     }
@@ -186,14 +198,14 @@ export default function App() {
       setEvaluationToolsContent(contents);
       showNotification("Contingut d'avaluació generat", "success");
     } catch (e) {
-      showNotification("Error de l'IA generant contingut d'avaluació.", "error");
+      handleGeminiError(e);
     } finally {
       setGeneratingToolContent(false);
     }
   };
 
   const handleInspiration = async () => {
-    if (selectedSubjectIds.length === 0) return showNotification("Tria una àrea.", "error");
+    if (selectedSubjectIds.length === 0) return showNotification("Tria una àrea primer.", "error");
     setInspirationLoading(true);
     try {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
@@ -201,7 +213,7 @@ export default function App() {
       setInspirationOptions(options);
       setShowInspirationModal(true);
     } catch (e) {
-      showNotification("Error de l'IA.", "error");
+      handleGeminiError(e);
     } finally {
       setInspirationLoading(false);
     }
@@ -215,9 +227,9 @@ export default function App() {
       const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
       const desc = await getDescriptionForTitle(opt, subNames, grade);
       setDescription(desc);
-      showNotification("SA inspirada correctament", "success");
+      showNotification("Descripció generada amb èxit", "success");
     } catch (e) {
-      showNotification("Error de l'IA.", "error");
+      handleGeminiError(e);
     } finally {
       setIsGeneratingDescription(false);
     }
@@ -227,9 +239,7 @@ export default function App() {
     if (newCustomTool.trim() && !evaluationTools.includes(newCustomTool.trim())) {
       setEvaluationTools(prev => [...prev, newCustomTool.trim()]);
       setNewCustomTool('');
-      showNotification("Instrument personalitzat afegit", "success");
-    } else if (evaluationTools.includes(newCustomTool.trim())) {
-      showNotification("Aquest instrument ja existeix.", "error");
+      showNotification("Instrument afegit", "success");
     }
   };
 
@@ -244,52 +254,38 @@ export default function App() {
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const date = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `eina_curricular_backup_${date}.json`;
+    a.download = `backup_programacions_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showNotification("Còpia de seguretat exportada", "success");
+    showNotification("Dades exportades", "success");
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const parsedData = JSON.parse(e.target?.result as string);
-        if (!Array.isArray(parsedData) || (parsedData.length > 0 && (!parsedData[0].id || !parsedData[0].title))) {
-          showNotification("El fitxer de còpia de seguretat no té un format vàlid.", "error");
-          return;
-        }
-
-        if (window.confirm("La importació de dades sobreescriurà les Situacions d'Aprenentatge actuals. Estàs segur?")) {
+        if (window.confirm("Això substituirà les teves programacions actuals. Vols continuar?")) {
           setActivities(parsedData);
-          showNotification("Còpia de seguretat importada correctament", "success");
+          showNotification("Dades importades correctament", "success");
         }
       } catch (error) {
-        showNotification("Error en processar el fitxer JSON.", "error");
-      } finally {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        showNotification("Format de fitxer invàlid.", "error");
       }
-    };
-    reader.onerror = () => {
-      showNotification("Error en llegir el fitxer.", "error");
     };
     reader.readAsText(file);
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fcf8] text-slate-800 flex flex-col font-sans">
-      <nav className="bg-white border-b border-blue-100 sticky top-0 z-40 h-16 flex items-center px-6 justify-between shadow-sm">
+    <div className="min-h-screen bg-[#fcfdfe] text-slate-800 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
+      <nav className="bg-white/80 backdrop-blur-md border-b border-blue-100 sticky top-0 z-40 h-16 flex items-center px-6 justify-between shadow-sm">
         <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('dashboard')}>
-          <div className="bg-blue-600 text-white p-2 rounded-xl shadow-lg group-hover:scale-110 transition-transform">
+          <div className="bg-gradient-to-tr from-blue-600 to-blue-400 text-white p-2 rounded-xl shadow-lg group-hover:rotate-6 transition-transform">
             <GraduationCap size={20} />
           </div>
           <div className="flex flex-col">
@@ -300,52 +296,52 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-6">
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-8">
             {['dashboard', 'calendar', 'analytics'].map((v) => (
               <button 
                 key={v}
                 onClick={() => setView(v as ViewType)} 
-                className={`text-[11px] font-black uppercase tracking-widest transition-all relative py-2 ${view === v ? 'text-blue-600' : 'text-slate-500 hover:text-blue-500'}`}
+                className={`text-[11px] font-black uppercase tracking-widest transition-all relative py-2 ${view === v ? 'text-blue-600' : 'text-slate-400 hover:text-slate-900'}`}
               >
-                {v === 'dashboard' ? 'Inici' : v === 'calendar' ? 'Calendari' : 'Anàlisi'}
-                {view === v && <span className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-full"></span>}
+                {v === 'dashboard' ? 'El meu taulell' : v === 'calendar' ? 'Calendari' : 'Anàlisi'}
+                {view === v && <span className="absolute -bottom-1 left-0 w-full h-1 bg-blue-600 rounded-full"></span>}
               </button>
             ))}
           </div>
         </div>
       </nav>
 
-      <main className="flex-grow p-6 max-w-full mx-auto w-full mb-16">
+      <main className="flex-grow p-6 max-w-[1400px] mx-auto w-full mb-16">
         {view === 'dashboard' && (
           <div className="animate-fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 bg-white p-8 rounded-[2.5rem] border border-blue-50 shadow-sm">
               <div>
-                <h1 className="text-5xl font-black text-slate-900 tracking-tight leading-tight">Programació d'Aula</h1>
-                <p className="text-slate-600 font-bold mt-2 text-lg">Tens <span className="text-blue-700 font-black">{activities.length}</span> situacions d'aprenentatge actives.</p>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">Programació d'Aula</h1>
+                <p className="text-slate-500 font-bold mt-1">Tens <span className="text-blue-600">{activities.length}</span> Situacions d'Aprenentatge actives.</p>
               </div>
               <div className="flex gap-3 w-full md:w-auto">
                 <div className="relative flex-grow md:flex-grow-0">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="text" placeholder="Cerca SA..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-white border-2 border-slate-200 pl-11 pr-5 py-3.5 rounded-xl text-sm font-bold outline-none focus:border-blue-500 shadow-sm w-full md:w-64 transition-all text-slate-700" />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                  <input type="text" placeholder="Buscar SA..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-slate-50 border-2 border-slate-100 pl-11 pr-5 py-3 rounded-2xl text-sm font-bold outline-none focus:border-blue-400 focus:bg-white w-full md:w-64 transition-all" />
                 </div>
-                <button onClick={() => { resetForm(); setView('create'); }} className="bg-blue-600 text-white px-8 py-3.5 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95"><PlusCircle size={20} /> Nova SA</button>
+                <button onClick={() => { resetForm(); setView('create'); }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-blue-200 flex items-center gap-2 hover:bg-blue-700 hover:-translate-y-1 transition-all active:scale-95"><PlusCircle size={18} /> Nova SA</button>
               </div>
             </div>
             
             {filteredActivities.length === 0 ? (
-              <div className="bg-white rounded-[3rem] p-24 text-center border-2 border-blue-100 shadow-lg">
-                <div className="bg-blue-50 w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-8 text-blue-300">
-                  <BookOpen size={56} />
+              <div className="bg-white rounded-[3rem] p-24 text-center border border-blue-100 shadow-sm">
+                <div className="bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 text-blue-200 animate-pulse">
+                  <Sparkles size={48} />
                 </div>
-                <h3 className="text-3xl font-black text-slate-400 tracking-tight">Cap programació trobada</h3>
-                <p className="text-slate-500 mt-3 font-bold max-w-sm mx-auto text-lg leading-relaxed">Comença a dissenyar la teva primera Situació d'Aprenentatge competencial.</p>
+                <h3 className="text-2xl font-black text-slate-400">Encara no tens cap SA</h3>
+                <p className="text-slate-400 mt-2 font-medium max-w-sm mx-auto">Comença a dissenyar el teu curs amb l'ajuda de la IA curricular.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredActivities.map(act => (
                   <ActivityCard 
                     key={act.id} 
-                    activity={{...act, color: 'bg-blue-700'}} 
+                    activity={act} 
                     activitySubjectIds={act.subjectIds} 
                     onDelete={id => setActivities(p => p.filter(a => a.id !== id))} 
                     onView={setViewingActivity} 
@@ -358,10 +354,9 @@ export default function App() {
                       setView('create'); 
                     }} 
                     onCopy={a => {
-                      const newId = generateId();
-                      const copy = {...a, id: newId, title: a.title + ' (còpia)', createdAt: Date.now()};
+                      const copy = {...a, id: generateId(), title: a.title + ' (Còpia)', createdAt: Date.now()};
                       setActivities(p => [copy, ...p]);
-                      showNotification("SA duplicada", "success");
+                      showNotification("SA duplicada!", "success");
                     }} 
                   />
                 ))}
@@ -374,115 +369,95 @@ export default function App() {
         {view === 'analytics' && <AnalyticsPanel activities={activities} />}
 
         {view === 'create' && (
-          <div className="max-w-full mx-auto bg-white rounded-[3rem] shadow-2xl overflow-hidden border-2 border-blue-100 animate-scale-in flex flex-col min-h-[85vh]">
-            <div className="flex border-b-2 border-blue-50 bg-blue-50/30 p-3 gap-3">
+          <div className="max-w-6xl mx-auto bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-blue-50 animate-scale-in flex flex-col min-h-[85vh]">
+            <div className="flex border-b border-blue-50 bg-slate-50/50 p-3 gap-2">
               {Object.keys(TAB_LABELS).map(t => (
-                <button key={t} onClick={() => setActiveTab(t as CreateTab)} className={`flex-1 py-4 rounded-[2rem] text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-600 hover:bg-blue-100'}`}>{TAB_LABELS[t]}</button>
+                <button key={t} onClick={() => setActiveTab(t as CreateTab)} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:bg-white/50'}`}>{TAB_LABELS[t]}</button>
               ))}
             </div>
             
-            <div className="p-10 md:p-14 flex-grow overflow-y-auto">
+            <div className="p-10 md:p-14 flex-grow overflow-y-auto custom-scrollbar">
               {activeTab === 'basics' && (
                 <div className="space-y-16 animate-fade-in">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-start">
-                    <div className="md:col-span-4 space-y-5">
-                      <label className="block text-[11px] font-black uppercase tracking-widest text-blue-800 ml-2">Nivell Escolar</label>
-                      <select className="w-full bg-slate-50 p-5 rounded-[1.5rem] font-black text-lg outline-none border-2 border-slate-200 focus:border-blue-500 appearance-none cursor-pointer hover:bg-white transition-all shadow-md text-slate-700" value={grade} onChange={e => setGrade(e.target.value as Grade)}>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+                    <div className="md:col-span-4 space-y-4">
+                      <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2">Curs escolar</label>
+                      <select className="w-full bg-slate-50 p-5 rounded-2xl font-black text-lg outline-none border border-slate-100 focus:border-blue-400 hover:bg-white transition-all shadow-sm text-slate-700 appearance-none cursor-pointer" value={grade} onChange={e => setGrade(e.target.value as Grade)}>
                         {GRADES.map(g => <option key={g} value={g}>{g} de Primària</option>)}
                       </select>
                     </div>
 
                     <div className="md:col-span-8 space-y-10">
                       <div>
-                        <label className="block text-[11px] font-black uppercase tracking-widest text-blue-800 ml-2 mb-6">Àrees Curriculars</label>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-6">Àrees i Competències</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           {SUBJECTS.map(s => (
                             <button 
                               key={s.id} 
                               onClick={() => setSelectedSubjectIds(p => p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])} 
-                              className={`flex flex-col items-center gap-3 p-6 rounded-[2rem] border-2 transition-all ${selectedSubjectIds.includes(s.id) ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400'}`}
+                              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${selectedSubjectIds.includes(s.id) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-50 hover:border-blue-200'}`}
                             >
-                              <div className={`${selectedSubjectIds.includes(s.id) ? 'text-white' : 'text-blue-600'} transition-colors`}>
+                              <div className={`${selectedSubjectIds.includes(s.id) ? 'text-white' : 'text-blue-500'}`}>
                                 {SUBJECT_ICONS[s.id] || SUBJECT_ICONS.default}
                               </div>
-                              <span className="text-[10px] font-bold text-center leading-tight uppercase tracking-tight">
+                              <span className="text-[10px] font-bold text-left leading-tight uppercase tracking-tight">
                                 {s.name.split(' (')[0].replace('Coneixement del ', '')}
                               </span>
                             </button>
                           ))}
                         </div>
                       </div>
-
-                      <div>
-                        <label className="block text-[11px] font-black uppercase tracking-widest text-slate-600 ml-2 mb-6">Competències Transversals</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {TRANSVERSAL_COMPETENCIES.map(s => (
-                            <button 
-                              key={s.id} 
-                              onClick={() => setSelectedSubjectIds(p => p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])} 
-                              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${selectedSubjectIds.includes(s.id) ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}
-                            >
-                              <div className={`${selectedSubjectIds.includes(s.id) ? 'text-blue-400' : 'text-slate-400'}`}>
-                                {SUBJECT_ICONS[s.id] || SUBJECT_ICONS.default}
-                              </div>
-                              <span className="text-[9px] font-black uppercase tracking-tight">
-                                {s.name.replace('Competència ', '')}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-8 bg-slate-50/50 p-10 rounded-[3rem] border-2 border-slate-100">
-                    <div className="flex items-center gap-4 ml-3">
-                       <Flag size={24} className="text-blue-700" />
-                       <label className="block text-[12px] font-black uppercase tracking-[0.2em] text-blue-900">Títol de la Situació d'Aprenentatge</label>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 ml-2">
+                       <Flag size={20} className="text-blue-600" />
+                       <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">Títol de la SA</label>
                     </div>
-                    <div className="flex gap-6 items-center">
-                      <input className="flex-1 text-4xl font-black outline-none border-b-4 border-blue-100 py-6 focus:border-blue-600 bg-transparent transition-all placeholder:text-slate-200 tracking-tight text-slate-900" placeholder="Escriu el títol aquí..." value={title} onChange={e => setTitle(e.target.value)} />
-                      <button onClick={handleInspiration} disabled={inspirationLoading} className="bg-blue-900 text-white p-6 rounded-[2rem] hover:bg-blue-700 transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center min-w-[80px]">
-                        {inspirationLoading ? <Loader2 size={28} className="animate-spin" /> : <Wand2 size={28} />}
+                    <div className="flex gap-4 items-center">
+                      <input className="flex-1 text-4xl font-black outline-none border-b-4 border-slate-50 py-4 focus:border-blue-600 bg-transparent transition-all placeholder:text-slate-100 text-slate-900" placeholder="Escriu el títol aquí..." value={title} onChange={e => setTitle(e.target.value)} />
+                      <button onClick={handleInspiration} disabled={inspirationLoading} className="bg-slate-900 text-white p-5 rounded-2xl hover:bg-black transition-all shadow-xl active:scale-95 disabled:opacity-50">
+                        {inspirationLoading ? <Loader2 size={24} className="animate-spin" /> : <Wand2 size={24} />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-8">
-                    <div className="flex items-center gap-4 ml-3">
-                       <Target size={24} className="text-blue-700" />
-                       <label className="block text-[12px] font-black uppercase tracking-[0.2em] text-blue-900">Descripció del Context i Repte</label>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 ml-2">
+                       <Target size={20} className="text-blue-600" />
+                       <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400">Descripció i Contextualització</label>
                     </div>
                     <div className="relative">
                       {isGeneratingDescription && (
-                        <div className="absolute inset-0 bg-white/95 backdrop-blur-xl z-10 flex flex-col items-center justify-center rounded-[4rem] border-3 border-dashed border-blue-300 shadow-xl">
-                          <Loader2 className="animate-spin text-blue-700 mb-6" size={56} />
-                          <span className="text-[12px] font-black uppercase tracking-[0.3em] text-blue-800 animate-pulse">L'IA està redactant...</span>
+                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-blue-200">
+                          <Loader2 className="animate-spin text-blue-600 mb-4" size={40} />
+                          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-600">L'IA està redactant la proposta...</span>
                         </div>
                       )}
-                      <textarea className="w-full bg-white p-12 rounded-[4rem] font-bold min-h-[350px] outline-none border-3 border-slate-100 focus:border-blue-200 transition-all leading-relaxed text-slate-800 text-xl shadow-lg placeholder:text-slate-300" placeholder="Descriu el context motivador, el repte i el producte final..." value={description} onChange={e => setDescription(e.target.value)} />
+                      <textarea className="w-full bg-slate-50 p-10 rounded-[2.5rem] font-bold min-h-[300px] outline-none border border-slate-100 focus:border-blue-200 transition-all leading-relaxed text-slate-700 text-lg shadow-inner placeholder:text-slate-200" placeholder="Descriu el context, el repte inicial i el producte final que es vol aconseguir..." value={description} onChange={e => setDescription(e.target.value)} />
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center pt-12 border-t-2 border-slate-100">
-                    <button onClick={() => setView('dashboard')} className="flex items-center gap-4 text-slate-600 hover:text-blue-900 font-black uppercase tracking-widest text-[11px] transition-colors"><ArrowLeft size={20} /> Tornar al taulell</button>
-                    <button onClick={() => setActiveTab('curriculum')} className="bg-blue-900 text-white px-12 py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-4 hover:bg-black shadow-lg transition-all active:scale-95">Continuar al currículum <ChevronRight size={20} /></button>
+                  <div className="flex justify-between items-center pt-10 border-t border-slate-50">
+                    <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-black uppercase tracking-widest text-[10px] transition-colors"><ArrowLeft size={16} /> Tornar enrere</button>
+                    <button onClick={() => setActiveTab('curriculum')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Continuar al currículum <ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
 
               {activeTab === 'curriculum' && (
-                <div className="animate-fade-in space-y-16">
-                  <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-12 rounded-[4rem] flex flex-col md:flex-row items-center justify-between border-3 border-blue-300 shadow-xl gap-10">
-                    <div className="flex gap-8 items-center">
-                      <div className="bg-white/20 backdrop-blur-md p-6 rounded-3xl text-white shadow-lg"><Sparkles size={42} /></div>
+                <div className="animate-fade-in space-y-12">
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-10 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between border border-blue-400 shadow-xl gap-8">
+                    <div className="flex gap-6 items-center">
+                      <div className="bg-white/20 p-4 rounded-2xl text-white"><Sparkles size={32} /></div>
                       <div>
-                        <h4 className="font-black text-white text-3xl tracking-tight">Assistent Curricular Intel·ligent</h4>
-                        <p className="text-blue-50 text-lg font-bold mt-1">Vinculació directa amb el Decret 175/2022 de Catalunya.</p>
+                        <h4 className="font-black text-white text-2xl tracking-tight">Vincle Curricular Intel·ligent</h4>
+                        <p className="text-blue-100 text-sm font-bold">L'IA seleccionarà els elements del Decret 175/2022 més adients.</p>
                       </div>
                     </div>
-                    <button onClick={handleAiCurriculum} disabled={aiLoading} className="bg-white text-blue-800 px-12 py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-4 hover:bg-blue-50 shadow-lg disabled:opacity-50 transition-all whitespace-nowrap">
-                      {aiLoading ? <Loader2 size={20} className="animate-spin" /> : <Compass size={20} />} Trobar Vincles
+                    <button onClick={handleAiCurriculum} disabled={aiLoading} className="bg-white text-blue-900 px-8 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-blue-50 shadow-lg disabled:opacity-50 transition-all">
+                      {aiLoading ? <Loader2 size={18} className="animate-spin" /> : <Compass size={18} />} Analitzar Currículum
                     </button>
                   </div>
 
@@ -493,60 +468,59 @@ export default function App() {
                       onToggleItem={(item) => setSelectedCurriculum(prev => prev.some(i => i.code === item.code) ? prev.filter(i => i.code !== item.code) : [...prev, item])} 
                     />
                   ) : (
-                    <div className="py-40 text-center border-4 border-dashed border-blue-50 rounded-[5rem] bg-white shadow-inner">
-                       <p className="text-blue-800 font-black uppercase tracking-[0.3em] text-[12px]">L'assistent t'ajudarà a seleccionar els elements més adients</p>
+                    <div className="py-40 text-center border-2 border-dashed border-blue-50 rounded-[3rem] bg-white">
+                       <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Clica el botó per obtenir suggeriments basats en la teva descripció</p>
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center pt-12 border-t-2 border-blue-100">
-                    <button onClick={() => setActiveTab('basics')} className="text-slate-600 font-black uppercase tracking-widest text-[11px] hover:text-blue-900 transition-colors">Enrere</button>
-                    <button onClick={() => setActiveTab('sequence')} className="bg-blue-900 text-white px-12 py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-4 hover:bg-black shadow-lg transition-all active:scale-95">Dissenyar Sessions <ChevronRight size={20} /></button>
+                  <div className="flex justify-between items-center pt-10 border-t border-slate-50">
+                    <button onClick={() => setActiveTab('basics')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
+                    <button onClick={() => setActiveTab('sequence')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Dissenyar Sessions <ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
 
               {activeTab === 'sequence' && (
                 <div className="animate-fade-in space-y-12">
-                  <div className="flex flex-col md:flex-row justify-between items-center gap-8 bg-blue-50/40 p-10 rounded-[3rem] border-2 border-blue-100">
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-5 bg-white p-5 rounded-2xl shadow-md border border-blue-100">
-                        <label className="text-[11px] font-black uppercase tracking-widest text-blue-900 ml-3">Sessions:</label>
-                        <input type="number" value={numSessions} onChange={e => setNumSessions(Number(e.target.value))} className="w-20 bg-slate-50 p-3 rounded-xl font-black text-center outline-none border-2 border-slate-200 focus:border-blue-500 text-xl text-slate-800" />
+                  <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 bg-white p-4 rounded-xl shadow-sm border border-slate-50">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Sessions:</label>
+                        <input type="number" value={numSessions} onChange={e => setNumSessions(Number(e.target.value))} className="w-16 bg-slate-50 p-2 rounded-lg font-black text-center outline-none border border-slate-100 focus:border-blue-400 text-lg" />
                       </div>
                     </div>
-                    <button onClick={handleGenerateSequence} disabled={sequenceLoading} className="bg-blue-600 text-white px-12 py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-5 shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-95">
-                      {sequenceLoading ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />} Generar Seqüència amb IA
+                    <button onClick={handleGenerateSequence} disabled={sequenceLoading} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-xl shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 transition-all">
+                      {sequenceLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Dissenyar Seqüència Didàctica
                     </button>
                   </div>
 
-                  <div className="space-y-12">
+                  <div className="space-y-10">
                     {detailedActivities.length > 0 ? detailedActivities.map((session, idx) => (
-                      <div key={idx} className="bg-white border-3 border-slate-100 rounded-[4rem] overflow-hidden hover:border-blue-200 transition-all shadow-lg">
-                        <div className="bg-blue-900 px-14 py-8 flex justify-between items-center text-white">
-                          <div className="flex items-center gap-6">
-                            <span className="bg-white/20 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-[0.2em]">Sessió {idx + 1}</span>
-                            <input className="bg-transparent font-black text-white text-2xl outline-none border-b-2 border-transparent focus:border-blue-400 placeholder:opacity-40 w-[450px]" placeholder="Títol de la sessió..." value={session.title} onChange={e => {
+                      <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden hover:border-blue-100 transition-all shadow-sm">
+                        <div className="bg-slate-900 px-10 py-6 flex justify-between items-center text-white">
+                          <div className="flex items-center gap-4">
+                            <span className="bg-white/10 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest">Sessió {idx + 1}</span>
+                            <input className="bg-transparent font-black text-white text-xl outline-none border-b border-transparent focus:border-blue-400 placeholder:opacity-40 w-[400px]" placeholder="Títol de la sessió..." value={session.title} onChange={e => {
                               const copy = [...detailedActivities];
                               copy[idx].title = e.target.value;
                               setDetailedActivities(copy);
                             }} />
                           </div>
                         </div>
-                        <div className="p-16 space-y-12">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
-                            <div className="space-y-5">
-                              <span className="block text-[11px] font-black uppercase text-blue-800 tracking-[0.2em] ml-3">Objectiu d'Aprenentatge</span>
-                              <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-lg font-black text-slate-900 outline-none focus:bg-white transition-all border-2 border-slate-200 focus:border-blue-200 shadow-inner" rows={4} value={session.objective} onChange={e => {
+                        <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-blue-600 tracking-widest ml-2">Objectiu d'Aprenentatge</span>
+                              <textarea className="w-full bg-slate-50 p-6 rounded-2xl text-base font-bold text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" rows={3} value={session.objective} onChange={e => {
                                 const copy = [...detailedActivities];
                                 copy[idx].objective = e.target.value;
                                 setDetailedActivities(copy);
                               }} />
                             </div>
-                            <div className="space-y-5">
-                              <span className="block text-[11px] font-black uppercase text-blue-800 tracking-[0.2em] ml-3">Data de la Sessió</span>
+                            <div className="space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Data prevista</span>
                               <input 
                                 type="date" 
-                                className="w-full bg-slate-50 p-8 rounded-[2rem] text-lg font-black text-slate-900 outline-none focus:bg-white transition-all border-2 border-slate-200 focus:border-blue-200 shadow-inner" 
+                                className="w-full bg-slate-50 p-6 rounded-2xl text-base font-black text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" 
                                 value={sessionDates[idx] || ''} 
                                 onChange={e => {
                                   const newDates = [...sessionDates];
@@ -555,124 +529,89 @@ export default function App() {
                                 }} 
                               />
                             </div>
-                            <div className="md:col-span-2 space-y-5">
-                              <span className="block text-[11px] font-black uppercase text-blue-800 tracking-[0.2em] ml-3">Desenvolupament</span>
-                              <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-lg font-bold text-slate-800 outline-none focus:bg-white transition-all border-2 border-slate-200 focus:border-blue-200 shadow-inner leading-relaxed" rows={10} value={session.steps} onChange={e => {
+                            <div className="md:col-span-2 space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Pas a pas del desenvolupament</span>
+                              <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-base font-medium text-slate-700 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner leading-relaxed" rows={8} value={session.steps} onChange={e => {
                                 const copy = [...detailedActivities];
                                 copy[idx].steps = e.target.value;
                                 setDetailedActivities(copy);
                               }} />
                             </div>
-                            <div className="md:col-span-2 space-y-5">
-                              <span className="block text-[11px] font-black uppercase text-indigo-800 tracking-[0.2em] ml-3">Mesures DUA</span>
-                              <textarea className="w-full bg-indigo-50 p-8 rounded-[2rem] text-lg font-bold text-indigo-800 outline-none focus:bg-white transition-all border-2 border-indigo-200 focus:border-indigo-400 shadow-inner leading-relaxed" rows={6} value={session.dua} onChange={e => {
+                            <div className="md:col-span-2 space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-2 flex items-center gap-2"><Sparkles size={14} /> Mesures DUA (Inclusió)</span>
+                              <textarea className="w-full bg-indigo-50/30 p-8 rounded-[2rem] text-base font-bold text-indigo-900/70 outline-none focus:bg-white transition-all border border-indigo-100 focus:border-indigo-400 shadow-inner leading-relaxed italic" rows={4} value={session.dua} onChange={e => {
                                 const copy = [...detailedActivities];
                                 copy[idx].dua = e.target.value;
                                 setDetailedActivities(copy);
                               }} />
                             </div>
-                          </div>
                         </div>
                       </div>
                     )) : (
-                      <div className="py-40 text-center border-4 border-dashed border-slate-100 rounded-[5rem] bg-white shadow-inner">
-                        <p className="text-slate-400 font-black uppercase tracking-[0.3em] text-[12px]">Utilitza la IA per dissenyar el recorregut didàctic</p>
+                      <div className="py-40 text-center border-2 border-dashed border-slate-50 rounded-[3rem] bg-white">
+                        <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Genera la seqüència amb IA o comença a afegir sessions manualment</p>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center pt-12 border-t-2 border-slate-100">
-                    <button onClick={() => setActiveTab('curriculum')} className="text-slate-600 font-black uppercase tracking-widest text-[11px] hover:text-blue-900 transition-colors">Enrere</button>
-                    <button onClick={() => setActiveTab('evaluation')} className="bg-blue-900 text-white px-12 py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-4 hover:bg-black shadow-lg transition-all active:scale-95">Configurar Avaluació <ChevronRight size={20} /></button>
+                  <div className="flex justify-between items-center pt-10 border-t border-slate-50">
+                    <button onClick={() => setActiveTab('curriculum')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
+                    <button onClick={() => setActiveTab('evaluation')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Configurar Avaluació <ChevronRight size={16} /></button>
                   </div>
                 </div>
               )}
 
               {activeTab === 'evaluation' && (
-                <div className="animate-fade-in space-y-16">
-                  <div className="space-y-8 bg-blue-50/40 p-10 rounded-[3rem] border-2 border-blue-100">
+                <div className="animate-fade-in space-y-12">
+                  <div className="space-y-8 bg-blue-50/30 p-10 rounded-[2.5rem] border border-blue-100">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                       <div className="flex-1">
-                        <h4 className="font-black text-3xl text-blue-900 tracking-tight">Instruments d'Avaluació</h4>
-                        <p className="text-blue-700 font-bold text-lg mt-2">Selecciona els instruments que vols generar amb IA.</p>
+                        <h4 className="font-black text-2xl text-blue-900 tracking-tight">Estratègia d'Avaluació</h4>
+                        <p className="text-blue-700 font-bold text-sm">Selecciona o afegeix els instruments que utilitzaràs.</p>
                       </div>
-                      <button onClick={handleSuggestEvalTools} disabled={evalLoading} className="bg-blue-600 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-4 shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-95 whitespace-nowrap">
-                        {evalLoading ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />} Suggerir Instruments
+                      <button onClick={handleSuggestEvalTools} disabled={evalLoading} className="bg-blue-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all">
+                        {evalLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Suggerir Instruments
                       </button>
                     </div>
 
                     {suggestedEvaluationTools.length > 0 && (
-                      <div className="space-y-4 pt-4 border-t border-blue-100">
-                        <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-800 ml-3">Suggerits per l'IA:</h5>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                          {suggestedEvaluationTools.map((tool, idx) => (
-                            <label key={idx} className="flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-slate-100 hover:border-blue-400 transition-all cursor-pointer shadow-sm">
-                              <input 
-                                type="checkbox" 
-                                checked={evaluationTools.includes(tool)} 
-                                onChange={() => setEvaluationTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])}
-                                className="form-checkbox h-5 w-5 text-blue-600 rounded-md border-slate-300 focus:ring-blue-500"
-                              />
-                              <span className="font-bold text-slate-800 text-sm">{tool}</span>
-                            </label>
-                          ))}
-                        </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {suggestedEvaluationTools.map((tool, idx) => (
+                          <label key={idx} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${evaluationTools.includes(tool) ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-50 hover:border-blue-200'}`}>
+                            <input 
+                              type="checkbox" 
+                              checked={evaluationTools.includes(tool)} 
+                              onChange={() => setEvaluationTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])}
+                              className="w-5 h-5 accent-blue-600"
+                            />
+                            <span className="font-bold text-slate-800 text-xs">{tool}</span>
+                          </label>
+                        ))}
                       </div>
                     )}
 
-                    <div className="space-y-4 pt-4 border-t border-blue-100">
-                      <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-800 ml-3">Afegeix el teu propi instrument:</h5>
-                      <div className="flex gap-4">
-                        <input
-                          type="text"
-                          value={newCustomTool}
-                          onChange={(e) => setNewCustomTool(e.target.value)}
-                          placeholder="Nom de l'instrument (ex: Escala d'observació de coavaluació)"
-                          className="flex-1 bg-white p-4 rounded-xl font-bold text-slate-700 outline-none border-2 border-slate-200 focus:border-indigo-400 shadow-sm"
-                        />
-                        <button onClick={handleAddCustomTool} className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all shadow-md active:scale-95 flex items-center gap-2">
-                          <SquarePlus size={18} /> Afegir
-                        </button>
-                      </div>
-                      {evaluationTools.length > 0 && (
-                        <div className="space-y-3 mt-5">
-                          <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800 ml-3">Instruments seleccionats:</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {evaluationTools.map((tool, idx) => (
-                              <div key={idx} className="flex items-center gap-2 bg-slate-100 text-slate-800 px-4 py-2 rounded-full text-xs font-bold border border-slate-200">
-                                {tool}
-                                <button onClick={() => setEvaluationTools(prev => prev.filter(t => t !== tool))} className="ml-1 text-slate-400 hover:text-red-600 transition-colors">
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
                     <div className="pt-6 border-t border-blue-100 flex justify-end">
-                      <button onClick={handleGenerateSelectedToolContent} disabled={evaluationTools.length === 0 || generatingToolContent} className="bg-blue-700 text-white px-12 py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest flex items-center gap-5 shadow-lg hover:bg-blue-800 disabled:opacity-50 transition-all active:scale-95">
-                        {generatingToolContent ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />} Generar Contingut d'Avaluació
+                      <button onClick={handleGenerateSelectedToolContent} disabled={evaluationTools.length === 0 || generatingToolContent} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-xl hover:bg-black disabled:opacity-50 transition-all">
+                        {generatingToolContent ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Generar Contingut d'Avaluació
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {evaluationTools.map((tool, idx) => (
-                      <div key={idx} className="bg-white border-3 border-slate-100 rounded-[4rem] p-12 hover:border-blue-300 transition-all shadow-lg flex flex-col">
-                        <div className="flex justify-between items-center mb-10">
-                          <h5 className="font-black text-blue-800 uppercase tracking-[0.3em] text-[12px] bg-blue-50 px-6 py-3 rounded-[1.2rem]">{tool}</h5>
-                          <button onClick={() => setEvaluationTools(p => p.filter(t => t !== tool))} className="text-slate-300 hover:text-red-600 transition-colors p-1.5"><X size={28} /></button>
+                      <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 hover:border-blue-200 transition-all shadow-sm flex flex-col">
+                        <div className="flex justify-between items-center mb-6">
+                          <h5 className="font-black text-blue-700 uppercase tracking-widest text-[10px] bg-blue-50 px-4 py-2 rounded-lg">{tool}</h5>
+                          <button onClick={() => setEvaluationTools(p => p.filter(t => t !== tool))} className="text-slate-200 hover:text-red-500 transition-colors"><X size={20} /></button>
                         </div>
-                        <div className="prose prose-slate max-w-none text-slate-900 font-bold overflow-auto max-h-[500px] border-t-2 border-slate-50 pt-8 text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: evaluationToolsContent[tool] || '<p class="text-blue-800 italic animate-pulse text-center py-16">L\'IA està donant forma a l\'instrument...</p>' }} />
+                        <div className="prose prose-slate max-w-none text-slate-800 font-medium overflow-auto max-h-[400px] text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: evaluationToolsContent[tool] || '<p class="text-slate-300 italic animate-pulse">L\'IA està preparant l\'instrument...</p>' }} />
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex justify-between items-center pt-14 border-t-4 border-slate-50">
-                    <button onClick={() => setActiveTab('sequence')} className="text-slate-600 font-black uppercase tracking-widest text-[11px] hover:text-blue-900 transition-colors">Enrere</button>
-                    <button onClick={handleSave} className="bg-blue-700 text-white px-20 py-7 rounded-[2rem] font-black uppercase text-[12px] tracking-[0.3em] flex items-center gap-5 hover:bg-blue-800 shadow-xl active:scale-95 transition-all"><Save size={28} /> Guardar Programació</button>
+                  <div className="flex justify-between items-center pt-10 border-t border-slate-50">
+                    <button onClick={() => setActiveTab('sequence')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-16 py-6 rounded-[2rem] font-black uppercase text-[12px] tracking-[0.2em] flex items-center gap-4 hover:bg-blue-700 shadow-2xl shadow-blue-200 active:scale-95 transition-all"><Save size={24} /> Guardar Programació</button>
                   </div>
                 </div>
               )}
@@ -681,72 +620,33 @@ export default function App() {
         )}
       </main>
 
-      <footer className="bg-white border-t-4 border-blue-100 py-12 mt-auto shrink-0 shadow-inner">
-        <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-10">
-          <div className="flex flex-col items-center md:items-start">
-            <span className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-800">Dissenyat i creat per</span>
-            <span className="text-xl font-black text-slate-900 mt-1">Servei Educatiu Vallès Occidental VIII</span>
-          </div>
-          <div className="flex items-center gap-5 text-blue-800">
-            <School size={32} />
-            <div className="h-10 w-1 bg-blue-100"></div>
-            <p className="text-[11px] font-black uppercase tracking-widest max-w-[220px] text-center md:text-left leading-relaxed">
-              Eina de suport a la programació per competències
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleExport} 
-              className="bg-blue-100 text-blue-800 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-200 transition-all shadow-sm active:scale-95 flex items-center gap-2"
-              title="Exportar còpia de seguretat"
-            >
-              <Download size={16} /> Exportar
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImport}
-              accept="application/json"
-              style={{ display: 'none' }}
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()} 
-              className="bg-sky-100 text-sky-800 px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-sky-200 transition-all shadow-sm active:scale-95 flex items-center gap-2"
-              title="Importar còpia de seguretat"
-            >
-              <Upload size={16} /> Importar
-            </button>
-          </div>
-        </div>
-      </footer>
-
+      {/* Modal d'Inspiració */}
       {showInspirationModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-2xl animate-fade-in">
-          <div className="bg-white rounded-[5rem] p-16 max-w-3xl w-full shadow-2xl animate-scale-in border-4 border-blue-100 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-3 bg-blue-700"></div>
-            <div className="flex justify-between items-center mb-16">
-              <div className="flex items-center gap-8">
-                <div className="bg-blue-700 text-white p-6 rounded-[2.5rem] shadow-xl"><Lightbulb size={48} /></div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
+            <div className="flex justify-between items-center mb-10">
+              <div className="flex items-center gap-6">
+                <div className="bg-blue-100 text-blue-600 p-4 rounded-2xl"><Lightbulb size={32} /></div>
                 <div>
-                  <h2 className="text-5xl font-black text-slate-900 tracking-tight leading-none">Inspiració</h2>
-                  <p className="text-slate-600 text-xl font-bold mt-3">Tria un focus per a la teva situació d'aprenentatge.</p>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Inspiració</h2>
+                  <p className="text-slate-400 font-bold">Tria un focus per a la teva SA.</p>
                 </div>
               </div>
-              <button onClick={() => setShowInspirationModal(false)} className="p-5 text-slate-300 hover:text-slate-900 hover:bg-slate-50 rounded-full transition-all"><X size={48} /></button>
+              <button onClick={() => setShowInspirationModal(false)} className="text-slate-300 hover:text-slate-900 transition-colors"><X size={32} /></button>
             </div>
             
-            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-8">
+            <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto pr-4 custom-scrollbar">
               {inspirationOptions.map((opt, i) => (
                 <button 
                   key={i} 
                   onClick={() => selectInspiration(opt.title)} 
-                  className="w-full text-left p-6 bg-slate-50/50 border-2 border-slate-100 rounded-2xl hover:border-blue-400 hover:bg-white hover:shadow-md transition-all group flex items-center justify-between"
+                  className="w-full text-left p-6 bg-slate-50/50 border-2 border-slate-50 rounded-2xl hover:border-blue-400 hover:bg-white transition-all group flex items-center justify-between"
                 >
                   <div>
-                    <span className="text-xl font-black text-slate-900 leading-tight group-hover:text-blue-700 transition-colors block">{opt.title}</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 bg-blue-100 px-3 py-1.5 rounded-lg mt-2 inline-block">{opt.style}</span>
+                    <span className="text-lg font-black text-slate-900 group-hover:text-blue-600 transition-colors">{opt.title}</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 px-2 py-1 rounded-md mt-2 block w-fit">{opt.style}</span>
                   </div>
-                  <ChevronRight size={28} className="text-slate-300 group-hover:text-blue-600 transition-colors" />
+                  <ChevronRight size={20} className="text-slate-200 group-hover:text-blue-400" />
                 </button>
               ))}
             </div>
@@ -755,13 +655,54 @@ export default function App() {
       )}
 
       {notification && (
-        <div className={`fixed bottom-10 right-10 px-14 py-7 rounded-[2.5rem] font-black uppercase text-[11px] tracking-[0.2em] shadow-xl z-[300] animate-slide-up flex items-center gap-5 border-3 ${notification.type === 'success' ? 'bg-blue-700 text-white border-blue-500' : 'bg-red-700 text-white border-red-500'}`}>
-          {notification.type === 'success' ? <Check size={28} /> : <X size={28} />}
+        <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-10 py-5 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl z-[300] animate-slide-up flex items-center gap-4 border-2 ${notification.type === 'success' ? 'bg-slate-900 text-white border-slate-800' : 'bg-red-600 text-white border-red-500'}`}>
+          {notification.type === 'success' ? <Check size={20} className="text-blue-400" /> : <AlertCircle size={20} />}
           {notification.message}
         </div>
       )}
 
       {viewingActivity && <ActivityDetailsModal activity={viewingActivity} onClose={() => setViewingActivity(null)} activitySubjectIds={viewingActivity.subjectIds} onDelete={id => setActivities(p => p.filter(a => a.id !== id))} showNotification={showNotification} />}
+      
+      <footer className="bg-white border-t border-slate-100 py-10 mt-auto shrink-0">
+        <div className="max-w-[1400px] mx-auto px-10 flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex flex-col items-center md:items-start">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">Desenvolupat per</span>
+            <span className="text-lg font-black text-slate-800">Servei Educatiu Vallès Occidental VIII</span>
+          </div>
+          <div className="flex items-center gap-8 text-slate-300">
+             <School size={24} />
+             <div className="h-8 w-px bg-slate-100"></div>
+             <div className="flex items-center gap-2">
+               <button onClick={handleExport} className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Download size={20} /></button>
+               <button onClick={() => fileInputRef.current?.click()} className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Upload size={20} /></button>
+               <input type="file" ref={fileInputRef} onChange={handleImport} accept="application/json" style={{ display: 'none' }} />
+             </div>
+          </div>
+        </div>
+      </footer>
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translate(-50%, 40px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
+        }
+      `}</style>
     </div>
   );
 }
