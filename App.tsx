@@ -93,11 +93,11 @@ export default function App() {
   const handleGeminiError = (e: any) => {
     console.error(e);
     if (e.message === "RATE_LIMIT_EXCEEDED") {
-      showNotification("Quota saturada. Hem canviat el model d'IA, però el sistema necessita una pausa de 10-15 segons. Espera una mica.", "error");
+      showNotification("Quota saturada. El sistema està esperant uns segons per continuar. No tanquis la finestra.", "error");
     } else if (e.message === "API_KEY_REQUIRED") {
       showNotification("Falta configurar la clau d'API.", "error");
     } else {
-      showNotification("S'ha produït un error en connectar amb la IA. Torna-ho a provar en un moment.", "error");
+      showNotification("Error de connexió amb la IA. Torna-ho a provar en uns segons.", "error");
     }
   };
 
@@ -192,17 +192,19 @@ export default function App() {
     if (evaluationTools.length === 0) return showNotification("Selecciona instruments primer.", "error");
     setGeneratingToolContent(true);
     try {
-      const contents: Record<string, string> = {};
+      const contents: Record<string, string> = { ...evaluationToolsContent };
       const criteria = selectedCurriculum.filter(i => i.type === 'criteri');
       
-      // Fem les crides seqüencialment per no saturar la quota RPM
+      // Crides seqüencials amb retard incrementat per evitar el 429
       for (const t of evaluationTools) {
-        contents[t] = await generateEvaluationToolContent(t, title, grade, criteria);
-        // Petita pausa entre instruments per seguretat
-        await new Promise(r => setTimeout(r, 800));
+        if (!contents[t]) { // Només generem si no existeix ja
+          contents[t] = await generateEvaluationToolContent(t, title, grade, criteria);
+          // Espera de 2 segons entre instruments per seguretat de quota
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
       setEvaluationToolsContent(contents);
-      showNotification("Contingut d'avaluació generat.", "success");
+      showNotification("Contingut d'avaluació generat correctament.", "success");
     } catch (e) {
       handleGeminiError(e);
     } finally {

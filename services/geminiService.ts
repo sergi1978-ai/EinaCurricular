@@ -3,10 +3,10 @@ import { GoogleGenAI } from "@google/genai";
 import { AiResponse, CurriculumItem, Session } from "../types";
 
 /**
- * Models corregits segons l'especificació oficial per evitar l'error 404
+ * Models de la sèrie 2.0: Més estables i amb millor quota per a comptes gratuïts
  */
-const SIMPLE_MODEL = 'gemini-flash-lite-latest';
-const COMPLEX_MODEL = 'gemini-3-flash-preview';
+const SIMPLE_MODEL = 'gemini-2.0-flash-lite-preview-02-05';
+const COMPLEX_MODEL = 'gemini-2.0-flash';
 
 /**
  * Neteja la resposta de la IA per assegurar que és un JSON vàlid
@@ -50,17 +50,18 @@ async function callGemini(prompt: string, model: string, isJson: boolean = false
     
     // Si l'error és de quota (429)
     if (error.message?.includes("429") && retryCount < MAX_RETRIES) {
-      const jitter = Math.random() * 500;
-      const waitTime = (Math.pow(2, retryCount) * 1500) + jitter; 
+      // Backoff exponencial més agressiu per a 429
+      const jitter = Math.random() * 1000;
+      const waitTime = (Math.pow(2, retryCount) * 2000) + jitter; 
       
-      console.warn(`Límit assolit. Reintentant en ${(waitTime/1000).toFixed(1)}s...`);
+      console.warn(`Quota superada. Reintentant en ${(waitTime/1000).toFixed(1)}s (Intent ${retryCount + 1}/${MAX_RETRIES})...`);
       await sleep(waitTime);
       return callGemini(prompt, model, isJson, retryCount + 1);
     }
 
-    // Si el model no es troba (404), ho intentem amb un model de seguretat (flash)
+    // Si el model no es troba (404), ho intentem amb el model Complex que és el més estàndard
     if (error.message?.includes("404") && model !== COMPLEX_MODEL) {
-      console.warn(`Model ${model} no trobat. Provant amb ${COMPLEX_MODEL}...`);
+      console.warn(`Model ${model} no disponible. Provant amb ${COMPLEX_MODEL}...`);
       return callGemini(prompt, COMPLEX_MODEL, isJson, retryCount);
     }
 
@@ -92,7 +93,7 @@ export const getDescriptionForTitle = async (title: string, subjects: string[], 
   2. Contextualització: En quin entorn o repte real se situa l'alumnat?
   3. Producte final: Què s'espera que creïn o facin al final del procés?
   4. Impacte: Quina transformació o aprenentatge profund es busca?
-  Utilitza un to molt professional, engrescador i utilitza un vocabulari d'acord amb el Decret 175/2022.`;
+  Utilitza un to professional i d'acord amb el Decret 175/2022.`;
   return await callGemini(prompt, SIMPLE_MODEL);
 };
 
@@ -102,11 +103,7 @@ export const generateDetailedActivities = async (title: string, description: str
   Descripció base: "${description}". 
   Àrees implicades: ${subjects.join(', ')}.
 
-  Per a cada sessió, el camp 'steps' ha de ser una descripció narrativa i exhaustiva (mínim 300 paraules) que detalli:
-  - Fase d'activació o motivació.
-  - Desenvolupament de les activitats principals pas a pas (gestió d'aula, preguntes clau).
-  - Gestió de l'avaluació formativa durant la sessió.
-  - Fase de tancament i reflexió.
+  Per a cada sessió, el camp 'steps' ha de ser una descripció narrativa i exhaustiva (mínim 300 paraules) que detalli la seqüència d'activitats.
 
   Respon EXCLUSIVAMENT amb JSON: 
   {"sessions": [
@@ -133,10 +130,7 @@ export const getCurriculumSuggestions = async (subjects: string[], grade: string
   const prompt = `Analitza aquesta Situació d'Aprenentatge de ${grade} de Primària i proposa els elements del Decret 175/2022 (Catalunya) que millor hi encaixin.
   Context de la SA: "${activityDescription}". 
   Àrees: ${subjects.join(', ')}.
-  Proposa:
-  1. Competències específiques de cada àrea.
-  2. Criteris d'avaluació vinculats.
-  3. Sabers bàsics concrets.
+  Proposa Competències específiques, Criteris d'avaluació i Sabers bàsics.
   Respon EXCLUSIVAMENT amb JSON: {"competencies": [{"code": "...", "text": "..."}], "criteria": [{"code": "...", "text": "..."}], "sabers": [{"code": "...", "text": "..."}]}`;
 
   try {
