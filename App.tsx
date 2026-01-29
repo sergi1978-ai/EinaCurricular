@@ -23,18 +23,8 @@ import CalendarView from './components/CalendarView';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { 
   PlusCircle, ArrowLeft, Loader2, Save, School, Wand2, X, Sparkles, ChevronRight, Check, Search, Lightbulb, Flag, Target, Compass, GraduationCap, 
-  Upload, Download, AlertCircle, Settings2, Zap, BrainCircuit, Cpu, MousePointer2, Key, ExternalLink, ShieldCheck
+  Upload, Download, AlertCircle, Settings2, Zap, BrainCircuit, Cpu
 } from 'lucide-react';
-
-// Declaració per a l'extensió d'AI Studio
-declare global {
-  interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
 
 type ViewType = 'dashboard' | 'calendar' | 'analytics' | 'create';
 type CreateTab = 'basics' | 'curriculum' | 'sequence' | 'evaluation';
@@ -49,33 +39,9 @@ const TAB_LABELS: Record<string, string> = {
 };
 
 const AI_MODELS = [
-  { 
-    id: 'gemini-flash-lite-latest', 
-    name: 'Lite', 
-    fullName: 'Gemini Lite',
-    desc: 'Màxima velocitat i quota alta (15 RPM). Recomanat per a ús massiu en centres.', 
-    tag: 'QUOTA ALTA',
-    color: 'emerald',
-    icon: <Zap size={22} /> 
-  },
-  { 
-    id: 'gemini-3-flash-preview', 
-    name: 'Flash', 
-    fullName: 'Gemini Flash',
-    desc: 'L\'opció més equilibrada. Ideal per a ús individual o grups petits.', 
-    tag: 'RECOMANAT',
-    color: 'blue',
-    icon: <Cpu size={22} /> 
-  },
-  { 
-    id: 'gemini-3-pro-preview', 
-    name: 'Pro', 
-    fullName: 'Gemini Pro',
-    desc: 'Expert en raonament complex. Quota molt limitada (2 RPM).', 
-    tag: 'MÀXIMA QUALITAT',
-    color: 'purple',
-    icon: <BrainCircuit size={22} /> 
-  }
+  { id: 'gemini-flash-lite-latest', name: 'Gemini Lite', desc: 'Màxima velocitat i quota alta. Ideal per a títols i idees.', icon: <Zap size={18} /> },
+  { id: 'gemini-3-flash-preview', name: 'Gemini Flash', desc: 'Molt ràpid i equilibrat. Recomanat per defecte.', icon: <Cpu size={18} /> },
+  { id: 'gemini-3-pro-preview', name: 'Gemini Pro', desc: 'Màxima intel·ligència pedagògica. Quota més limitada.', icon: <BrainCircuit size={18} /> }
 ];
 
 export default function App() {
@@ -94,24 +60,12 @@ export default function App() {
   const [aiConfig, setAiConfig] = useState(() => {
     const saved = localStorage.getItem('einacurricular_ai_config');
     return saved ? JSON.parse(saved) : {
-      simpleModel: 'gemini-flash-lite-latest',
+      simpleModel: 'gemini-3-flash-preview',
       complexModel: 'gemini-3-flash-preview'
     };
   });
 
-  const [hasPersonalKey, setHasPersonalKey] = useState(false);
   const [showAiSettings, setShowAiSettings] = useState(false);
-
-  // Check personal key status
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasPersonalKey(hasKey);
-      }
-    };
-    checkKey();
-  }, []);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -123,6 +77,7 @@ export default function App() {
   const [sessionDates, setSessionDates] = useState<string[]>([]); 
   const [evaluationTools, setEvaluationTools] = useState<string[]>([]); 
   const [suggestedEvaluationTools, setSuggestedEvaluationTools] = useState<string[]>([]); 
+  const [newCustomTool, setNewCustomTool] = useState<string>(''); 
   const [evaluationToolsContent, setEvaluationToolsContent] = useState<Record<string, string>>({});
   const [selectedCurriculum, setSelectedCurriculum] = useState<CurriculumItem[]>([]);
   const [suggestions, setSuggestions] = useState<AiResponse | null>(null);
@@ -159,24 +114,11 @@ export default function App() {
   const handleGeminiError = (e: any) => {
     console.error("Gemini Error:", e);
     if (e.message?.includes("429")) {
-      showNotification("Quota saturada. Prova de canviar al model 'Lite' o connecta la teva clau de centre.", "error");
-    } else if (e.message?.includes("API_KEY_REQUIRED") || e.message?.includes("Requested entity was not found")) {
-      showNotification("S'ha perdut la connexió amb l'IA. Torna a seleccionar la teva clau.", "error");
-      setHasPersonalKey(false);
+      showNotification("Quota saturada. Prova de canviar al model 'Gemini Lite' a la configuració.", "error");
+    } else if (e.message?.includes("API_KEY_REQUIRED")) {
+      showNotification("Configura la teva API KEY.", "error");
     } else {
       showNotification("Error de l'IA. Torna-ho a provar en uns moments.", "error");
-    }
-  };
-
-  const handlePersonalKeySelect = async () => {
-    if (window.aistudio) {
-      try {
-        await window.aistudio.openSelectKey();
-        setHasPersonalKey(true);
-        showNotification("Clau personal connectada correctament!", "success");
-      } catch (e) {
-        console.error("Key selection failed", e);
-      }
     }
   };
 
@@ -213,7 +155,7 @@ export default function App() {
   const resetForm = () => {
     setEditingId(null); setTitle(''); setDescription(''); setGrade(Grade.First); 
     setDetailedActivities([]); setSessionDates([]); setSelectedCurriculum([]); setSuggestions(null); 
-    setEvaluationTools([]); setSuggestedEvaluationTools([]); setEvaluationToolsContent({}); 
+    setEvaluationTools([]); setSuggestedEvaluationTools([]); setNewCustomTool(''); setEvaluationToolsContent({}); 
     setActiveTab('basics'); setNumSessions(6);
   };
 
@@ -362,9 +304,6 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // Helper to get active model names for the badge
-  const activeSimpleModel = AI_MODELS.find(m => m.id === aiConfig.simpleModel);
-
   return (
     <div className="min-h-screen bg-[#fcfdfe] text-slate-800 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
       <nav className="bg-white/80 backdrop-blur-md border-b border-blue-100 sticky top-0 z-40 h-16 flex items-center px-6 justify-between shadow-sm">
@@ -392,22 +331,9 @@ export default function App() {
               </button>
             ))}
           </div>
-          
-          <div className="flex items-center gap-2">
-            {/* Intel·ligència Badge */}
-            <div className={`hidden sm:flex items-center rounded-xl px-3 py-1.5 gap-2 border ${hasPersonalKey ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
-              <div className="flex -space-x-1">
-                <div className={`w-2 h-2 rounded-full ${hasPersonalKey ? 'bg-emerald-500' : `bg-${activeSimpleModel?.color || 'blue'}-500`} animate-pulse`}></div>
-              </div>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${hasPersonalKey ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {hasPersonalKey ? 'Connexió Pròpia' : `IA: ${activeSimpleModel?.name || '...'}`}
-              </span>
-            </div>
-            
-            <button onClick={() => setShowAiSettings(true)} className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-all shadow-sm border border-slate-100 flex items-center gap-2 group">
-              <Settings2 size={20} className="group-hover:rotate-45 transition-transform" />
-            </button>
-          </div>
+          <button onClick={() => setShowAiSettings(true)} className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-all shadow-sm border border-slate-100">
+            <Settings2 size={20} />
+          </button>
         </div>
       </nav>
 
@@ -554,7 +480,7 @@ export default function App() {
                       <div className="bg-white/20 p-4 rounded-2xl text-white"><Sparkles size={32} /></div>
                       <div>
                         <h4 className="font-black text-white text-2xl tracking-tight">Vincle Curricular Intel·ligent</h4>
-                        <p className="text-blue-100 text-sm font-bold">L'IA cercarer els elements del Decret 175/2022 més adients per a la teva SA.</p>
+                        <p className="text-blue-100 text-sm font-bold">L'IA cercarà els elements del Decret 175/2022 més adients per a la teva SA.</p>
                       </div>
                     </div>
                     <button onClick={handleAiCurriculum} disabled={aiLoading} className="bg-white text-blue-900 px-8 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-blue-50 shadow-lg disabled:opacity-50 transition-all">
@@ -595,4 +521,284 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="space-y-10
+                  <div className="space-y-10">
+                    {detailedActivities.length > 0 ? detailedActivities.map((session, idx) => (
+                      <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden hover:border-blue-100 transition-all shadow-sm">
+                        <div className="bg-slate-900 px-10 py-6 flex flex-col md:flex-row justify-between items-start md:items-center text-white gap-4">
+                          <div className="flex items-center gap-4 w-full">
+                            <span className="bg-white/10 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest">Sessió {idx + 1}</span>
+                            <input className="bg-transparent font-black text-white text-xl outline-none border-b border-transparent focus:border-blue-400 placeholder:opacity-40 flex-1" placeholder="Títol de la sessió..." value={session.title} onChange={e => {
+                              const copy = [...detailedActivities];
+                              copy[idx].title = e.target.value;
+                              setDetailedActivities(copy);
+                            }} />
+                          </div>
+                        </div>
+                        <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-blue-600 tracking-widest ml-2">Objectiu d'Aprenentatge</span>
+                              <textarea className="w-full bg-slate-50 p-6 rounded-2xl text-base font-bold text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" rows={3} value={session.objective} onChange={e => {
+                                const copy = [...detailedActivities];
+                                copy[idx].objective = e.target.value;
+                                setDetailedActivities(copy);
+                              }} />
+                            </div>
+                            <div className="space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Data prevista</span>
+                              <input 
+                                type="date" 
+                                className="w-full bg-slate-50 p-6 rounded-2xl text-base font-black text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" 
+                                value={sessionDates[idx] || ''} 
+                                onChange={e => {
+                                  const newDates = [...sessionDates];
+                                  newDates[idx] = e.target.value;
+                                  setSessionDates(newDates);
+                                }} 
+                              />
+                            </div>
+                            <div className="md:col-span-2 space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Desenvolupament (Activitats)</span>
+                              <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-base font-medium text-slate-700 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner leading-relaxed" rows={8} value={session.steps} onChange={e => {
+                                const copy = [...detailedActivities];
+                                copy[idx].steps = e.target.value;
+                                setDetailedActivities(copy);
+                              }} />
+                            </div>
+                            <div className="md:col-span-2 space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-2 flex items-center gap-2"><Sparkles size={14} /> Pautes i Mesures DUA</span>
+                              <textarea className="w-full bg-indigo-50/30 p-8 rounded-[2rem] text-base font-bold text-indigo-900/70 outline-none focus:bg-white transition-all border border-indigo-100 focus:border-indigo-400 shadow-inner leading-relaxed italic" rows={4} value={session.dua} onChange={e => {
+                                const copy = [...detailedActivities];
+                                copy[idx].dua = e.target.value;
+                                setDetailedActivities(copy);
+                              }} />
+                            </div>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="py-40 text-center border-2 border-dashed border-slate-50 rounded-[3rem] bg-white">
+                        <p className="text-slate-300 font-black uppercase tracking-[0.2em] text-[11px]">Utilitza la IA per dissenyar la seqüència o afegeix sessions manualment</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-10 border-t border-slate-50">
+                    <button onClick={() => setActiveTab('curriculum')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
+                    <button onClick={() => setActiveTab('evaluation')} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 hover:bg-black shadow-lg transition-all active:scale-95">Següent: Avaluació <ChevronRight size={16} /></button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'evaluation' && (
+                <div className="animate-fade-in space-y-12">
+                  <div className="space-y-8 bg-blue-50/30 p-10 rounded-[2.5rem] border border-blue-100">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="flex-1">
+                        <h4 className="font-black text-2xl text-blue-900 tracking-tight">Estratègia d'Avaluació</h4>
+                        <p className="text-blue-700 font-bold text-sm">Selecciona els instruments que t'ajudaran a avaluar els criteris triats.</p>
+                      </div>
+                      <button onClick={handleSuggestEvalTools} disabled={evalLoading} className="bg-blue-600 text-white px-8 py-4 rounded-xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all">
+                        {evalLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Suggerir Instruments
+                      </button>
+                    </div>
+
+                    {suggestedEvaluationTools.length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {suggestedEvaluationTools.map((tool, idx) => (
+                          <label key={idx} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${evaluationTools.includes(tool) ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-slate-50 hover:border-blue-200'}`}>
+                            <input 
+                              type="checkbox" 
+                              checked={evaluationTools.includes(tool)} 
+                              onChange={() => setEvaluationTools(prev => prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool])}
+                              className="w-5 h-5 accent-blue-600"
+                            />
+                            <span className="font-bold text-slate-800 text-xs">{tool}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-6 border-t border-blue-100 flex justify-end">
+                      <button onClick={handleGenerateSelectedToolContent} disabled={evaluationTools.length === 0 || generatingToolContent} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-xl hover:bg-black disabled:opacity-50 transition-all">
+                        {generatingToolContent ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Generar Contingut d'Avaluació
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {evaluationTools.map((tool, idx) => (
+                      <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 hover:border-blue-200 transition-all shadow-sm flex flex-col min-h-[400px]">
+                        <div className="flex justify-between items-center mb-6">
+                          <h5 className="font-black text-blue-700 uppercase tracking-widest text-[10px] bg-blue-50 px-4 py-2 rounded-lg">{tool}</h5>
+                          <button onClick={() => setEvaluationTools(p => p.filter(t => t !== tool))} className="text-slate-200 hover:text-red-500 transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="prose prose-slate max-w-none text-slate-800 font-medium overflow-auto max-h-[500px] text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: evaluationToolsContent[tool] || '<p class="text-slate-300 italic animate-pulse">L\'IA generarà el contingut en fer clic al botó superior...</p>' }} />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-10 border-t border-slate-50">
+                    <button onClick={() => setActiveTab('sequence')} className="text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 transition-colors">Enrere</button>
+                    <button onClick={handleSave} className="bg-blue-600 text-white px-16 py-6 rounded-[2rem] font-black uppercase text-[12px] tracking-[0.2em] flex items-center gap-4 hover:bg-blue-700 shadow-2xl shadow-blue-200 active:scale-95 transition-all"><Save size={24} /> Guardar Situació d'Aprenentatge</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Modal Configuració IA */}
+      {showAiSettings && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
+            <div className="flex justify-between items-center mb-10">
+              <div className="flex items-center gap-6">
+                <div className="bg-blue-100 text-blue-600 p-4 rounded-2xl"><Settings2 size={32} /></div>
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Configuració de l'IA</h2>
+                  <p className="text-slate-400 font-bold">Gestiona els models per optimitzar la quota.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAiSettings(false)} className="text-slate-300 hover:text-slate-900 transition-colors"><X size={32} /></button>
+            </div>
+            
+            <div className="space-y-10">
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-2">Model per a tasques ràpides (Títols, idees...)</label>
+                <div className="grid grid-cols-1 gap-3">
+                  {AI_MODELS.map(m => (
+                    <button 
+                      key={m.id} 
+                      onClick={() => setAiConfig(prev => ({...prev, simpleModel: m.id}))}
+                      className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${aiConfig.simpleModel === m.id ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-slate-50 hover:border-slate-200'}`}
+                    >
+                      <div className={`${aiConfig.simpleModel === m.id ? 'text-blue-600' : 'text-slate-300'}`}>{m.icon}</div>
+                      <div>
+                        <div className="font-black text-slate-900 text-sm">{m.name}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{m.desc}</div>
+                      </div>
+                      {aiConfig.simpleModel === m.id && <Check className="ml-auto text-blue-600" size={20} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-2">Model per a tasques de raonament (Sessions, Currículum...)</label>
+                <div className="grid grid-cols-1 gap-3">
+                  {AI_MODELS.map(m => (
+                    <button 
+                      key={m.id} 
+                      onClick={() => setAiConfig(prev => ({...prev, complexModel: m.id}))}
+                      className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${aiConfig.complexModel === m.id ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-slate-50 hover:border-slate-200'}`}
+                    >
+                      <div className={`${aiConfig.complexModel === m.id ? 'text-blue-600' : 'text-slate-300'}`}>{m.icon}</div>
+                      <div>
+                        <div className="font-black text-slate-900 text-sm">{m.name}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{m.desc}</div>
+                      </div>
+                      {aiConfig.complexModel === m.id && <Check className="ml-auto text-blue-600" size={20} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 flex gap-4">
+                 <AlertCircle className="text-amber-500 shrink-0" size={20} />
+                 <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
+                   Si reps l'error "Rate Limit Exceeded" (429), et recomanem passar ambdós selectors al model <strong>Gemini Lite</strong> fins que es restableixi la teva quota.
+                 </p>
+              </div>
+
+              <button onClick={() => setShowAiSettings(false)} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all shadow-xl active:scale-95">Guardar Configuració</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'Inspiració */}
+      {showInspirationModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
+            <div className="flex justify-between items-center mb-10">
+              <div className="flex items-center gap-6">
+                <div className="bg-blue-100 text-blue-600 p-4 rounded-2xl"><Lightbulb size={32} /></div>
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Idees i Enfocaments</h2>
+                  <p className="text-slate-400 font-bold">Tria una proposta per començar a treballar.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowInspirationModal(false)} className="text-slate-300 hover:text-slate-900 transition-colors"><X size={32} /></button>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto pr-4 custom-scrollbar">
+              {inspirationOptions.map((opt, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => selectInspiration(opt.title)} 
+                  className="w-full text-left p-6 bg-slate-50/50 border-2 border-slate-50 rounded-2xl hover:border-blue-400 hover:bg-white transition-all group flex items-center justify-between"
+                >
+                  <div>
+                    <span className="text-lg font-black text-slate-900 group-hover:text-blue-600 transition-colors">{opt.title}</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-blue-500 bg-blue-50 px-2 py-1 rounded-md mt-2 block w-fit">{opt.style}</span>
+                  </div>
+                  <ChevronRight size={20} className="text-slate-200 group-hover:text-blue-400" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notification && (
+        <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-10 py-5 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl z-[300] animate-slide-up flex items-center gap-4 border-2 ${notification.type === 'success' ? 'bg-slate-900 text-white border-slate-800' : 'bg-red-600 text-white border-red-500'}`}>
+          {notification.type === 'success' ? <Check size={20} className="text-blue-400" /> : <AlertCircle size={20} />}
+          {notification.message}
+        </div>
+      )}
+
+      {viewingActivity && <ActivityDetailsModal activity={viewingActivity} onClose={() => setViewingActivity(null)} activitySubjectIds={viewingActivity.subjectIds} onDelete={id => setActivities(p => p.filter(a => a.id !== id))} showNotification={showNotification} />}
+      
+      <footer className="bg-white border-t border-slate-100 py-10 mt-auto shrink-0">
+        <div className="max-w-[1400px] mx-auto px-10 flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex flex-col items-center md:items-start">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">Desenvolupat per</span>
+            <span className="text-lg font-black text-slate-800">Servei Educatiu Vallès Occidental VIII</span>
+          </div>
+          <div className="flex items-center gap-8 text-slate-300">
+             <School size={24} />
+             <div className="h-8 w-px bg-slate-100"></div>
+             <div className="flex items-center gap-2">
+               <button onClick={handleExport} title="Exportar dades" className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Download size={20} /></button>
+               <button onClick={() => fileInputRef.current?.click()} title="Importar dades" className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Upload size={20} /></button>
+               <input type="file" ref={fileInputRef} onChange={handleImport} accept="application/json" style={{ display: 'none' }} />
+             </div>
+          </div>
+        </div>
+      </footer>
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translate(-50%, 40px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
+        }
+      `}</style>
+    </div>
+  );
+}
