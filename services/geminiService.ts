@@ -3,10 +3,11 @@ import { GoogleGenAI } from "@google/genai";
 import { AiResponse, CurriculumItem, Session } from "../types";
 
 /**
- * Models recomanats segons la tasca
+ * Models optimitzats per evitar bloquejos de quota (429)
+ * Utilitzem la sèrie 2.5 Lite per a velocitat i la 3 Flash per a intel·ligència amb més RPM
  */
-const FLASH_MODEL = 'gemini-3-flash-preview';
-const PRO_MODEL = 'gemini-3-pro-preview';
+const SIMPLE_MODEL = 'gemini-2.5-flash-lite-latest';
+const COMPLEX_MODEL = 'gemini-3-flash-preview';
 
 /**
  * Neteja la resposta de la IA per assegurar que és un JSON vàlid
@@ -21,7 +22,7 @@ const cleanJsonString = (str: string): string => {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Helper per fer crides a Gemini amb gestió de reintents per quota
+ * Helper per fer crides a Gemini amb gestió de reintents millorada
  */
 async function callGemini(prompt: string, model: string, isJson: boolean = false, retryCount = 0) {
   const apiKey = process.env.API_KEY;
@@ -29,7 +30,7 @@ async function callGemini(prompt: string, model: string, isJson: boolean = false
     throw new Error("API_KEY_REQUIRED");
   }
 
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 4; // Un reintent més per seguretat
 
   try {
     const ai = new GoogleGenAI({ apiKey });
@@ -46,104 +47,86 @@ async function callGemini(prompt: string, model: string, isJson: boolean = false
     
     return isJson ? cleanJsonString(text) : text;
   } catch (error: any) {
-    console.error(`Gemini API Error (Intent ${retryCount + 1}):`, error);
+    console.error(`Error a l'intent ${retryCount + 1}:`, error.message);
     
-    // Si l'error és de quota (429) i no hem superat els reintents
+    // Si l'error és de quota (429)
     if (error.message?.includes("429") && retryCount < MAX_RETRIES) {
-      const waitTime = Math.pow(2, retryCount) * 1000; // Espera exponencial: 1s, 2s, 4s
-      console.warn(`Límit de quota assolit. Reintentant en ${waitTime}ms...`);
+      // Espera exponencial amb jitter (per evitar col·lisions)
+      const jitter = Math.random() * 500;
+      const waitTime = (Math.pow(2, retryCount) * 1500) + jitter; 
+      
+      console.warn(`Límit assolit. Reintentant en ${(waitTime/1000).toFixed(1)}s...`);
       await sleep(waitTime);
       return callGemini(prompt, model, isJson, retryCount + 1);
     }
 
     if (error.message?.includes("429")) throw new Error("RATE_LIMIT_EXCEEDED");
-    if (error.message?.includes("API key not valid")) throw new Error("INVALID_API_KEY");
     throw error;
   }
 }
 
 export const getTitleOptions = async (subjects: string[], grade: string, keywords: string): Promise<{title: string, style: string}[]> => {
-  const prompt = `Ets un expert en el currículum català (Decret 175/2022). Genera 6 títols suggeridors i creatius per a una Situació d'Aprenentatge de ${grade} de Primària. 
-  Àrees implicades: ${subjects.join(', ')}. 
-  Paraules clau o idees: ${keywords || 'temes d\'actualitat i interès per l\'alumnat'}.
-  Respon EXCLUSIVAMENT amb un JSON vàlid: {"options": [{"title": "...", "style": "..."}]}`;
+  const prompt = `Ets un expert en el currículum català. Genera 6 títols creatius per a una Situació d'Aprenentatge de ${grade} de Primària. 
+  Àrees: ${subjects.join(', ')}. Idees: ${keywords || 'interès general'}.
+  Respon EXCLUSIVAMENT amb JSON: {"options": [{"title": "...", "style": "..."}]}`;
 
   try {
-    const jsonStr = await callGemini(prompt, FLASH_MODEL, true);
+    // Model Lite per a peticions ràpides i estalvi de quota
+    const jsonStr = await callGemini(prompt, SIMPLE_MODEL, true);
     const data = JSON.parse(jsonStr);
     return data.options || [];
   } catch (e) {
-    console.error("Error getting titles:", e);
     return [];
   }
 };
 
 export const getDescriptionForTitle = async (title: string, subjects: string[], grade: string): Promise<string> => {
-  const prompt = `Ets un expert en pedagogia i currículum català. Escriu una descripció motivadora i professional d'unes 10 línies per a la Situació d'Aprenentatge titulada "${title}" per a ${grade} de Primària. 
-  Àrees: ${subjects.join(', ')}. 
-  La descripció ha de plantejar un repte o pregunta inicial, el context d'aprenentatge i el producte final esperat. Utilitza un to engrescador per al docent.`;
-  return await callGemini(prompt, FLASH_MODEL);
+  const prompt = `Escriu una descripció professional (10 línies) per a la SA "${title}" (${grade}). Àrees: ${subjects.join(', ')}. Contextualitza el repte i el producte final.`;
+  return await callGemini(prompt, SIMPLE_MODEL);
 };
 
 export const generateDetailedActivities = async (title: string, description: string, grade: string, subjects: string[], numSessions: number): Promise<Session[]> => {
-  const prompt = `Ets un expert en disseny de Situacions d'Aprenentatge seguint el marc DUA (Disseny Universal per a l'Aprenentatge) per a ${grade} de Primària a Catalunya.
-  Genera una seqüència detallada de ${numSessions} sessions per a la SA: "${title}". 
-  Descripció del context: "${description}". 
-  Àrees: ${subjects.join(', ')}.
-  Cada sessió ha d'incloure: 
-  - title (títol de la sessió)
-  - objective (objectiu d'aprenentatge en infinitiu)
-  - steps (explicació detallada pas a pas de la sessió)
-  - dua (mesures universals per a la inclusió i pautes DUA aplicades)
-  - methodology (tipus d'agrupament i mètode)
-  - evaluation (com s'avaluarà durant la sessió)
+  const prompt = `Dissenya una seqüència DUA de ${numSessions} sessions per a la SA: "${title}" de ${grade}. 
+  Context: "${description}". Àrees: ${subjects.join(', ')}.
   Respon EXCLUSIVAMENT amb JSON: {"sessions": [{"title": "...", "objective": "...", "steps": "...", "dua": "...", "methodology": "...", "evaluation": "..."}]}`;
 
   try {
-    const jsonStr = await callGemini(prompt, PRO_MODEL, true);
+    // Utilitzem el 3 Flash que és més robust per a tasques llargues
+    const jsonStr = await callGemini(prompt, COMPLEX_MODEL, true);
     const data = JSON.parse(jsonStr);
     return data.sessions || [];
   } catch (e) {
-    console.error("Error generating sequence:", e);
     throw e;
   }
 };
 
 export const getCurriculumSuggestions = async (subjects: string[], grade: string, activityDescription: string): Promise<AiResponse> => {
-  const prompt = `Analitza aquesta Situació d'Aprenentatge de ${grade} de Primària i proposa els elements del Decret 175/2022 (Catalunya) que millor hi encaixin.
-  Context de la SA: "${activityDescription}". 
-  Àrees: ${subjects.join(', ')}.
-  Proposa:
-  1. Competències específiques de cada àrea.
-  2. Criteris d'avaluació vinculats.
-  3. Sabers bàsics concrets.
+  const prompt = `Proposa elements del Decret 175/2022 per a aquesta SA: "${activityDescription}". Nivell: ${grade}. Àrees: ${subjects.join(', ')}.
   Respon EXCLUSIVAMENT amb JSON: {"competencies": [{"code": "...", "text": "..."}], "criteria": [{"code": "...", "text": "..."}], "sabers": [{"code": "...", "text": "..."}]}`;
 
   try {
-    const jsonStr = await callGemini(prompt, PRO_MODEL, true);
+    const jsonStr = await callGemini(prompt, COMPLEX_MODEL, true);
     return JSON.parse(jsonStr);
   } catch (e) {
-    console.error("Error getting curriculum:", e);
     throw e;
   }
 };
 
 export const suggestEvaluationTools = async (title: string, grade: string, criteria: CurriculumItem[]): Promise<string[]> => {
-  const prompt = `Proposa 5 instruments d'avaluació diversos (rúbriques, diaris, llistes, productes...) per a la SA "${title}" de ${grade}, tenint en compte aquests criteris d'avaluació: ${criteria.map(c => c.code).join(', ')}.
+  const prompt = `Proposa 5 instruments d'avaluació per a la SA "${title}" (${grade}) segons aquests criteris: ${criteria.map(c => c.code).join(', ')}.
   Respon EXCLUSIVAMENT amb JSON: {"tools": ["..."]}`;
 
   try {
-    const jsonStr = await callGemini(prompt, PRO_MODEL, true);
+    const jsonStr = await callGemini(prompt, COMPLEX_MODEL, true);
     const data = JSON.parse(jsonStr);
     return data.tools || [];
   } catch (e) {
-    return ["Rúbrica d'avaluació", "Llista de control", "Diaris d'aprenentatge"];
+    return ["Rúbrica", "Diaris d'aprenentatge"];
   }
 };
 
 export const generateEvaluationToolContent = async (toolName: string, activityTitle: string, grade: string, criteria: CurriculumItem[]): Promise<string> => {
-  const prompt = `Ets un expert en avaluació formativa. Crea el contingut professional (en format HTML net, utilitzant <table> si l'instrument és una rúbrica) per a l'instrument "${toolName}" de la SA "${activityTitle}" (${grade}). 
-  L'instrument ha de permetre avaluar aquests criteris: ${criteria.map(c => c.code + ': ' + c.text).join('; ')}. 
-  Assegura't que els indicadors siguin clars i graduats.`;
-  return await callGemini(prompt, PRO_MODEL);
+  const prompt = `Crea l'instrument "${toolName}" (format HTML, <table> si és rúbrica) per a la SA "${activityTitle}" (${grade}). 
+  Criteris base: ${criteria.map(c => c.code + ': ' + c.text).join('; ')}.`;
+  return await callGemini(prompt, COMPLEX_MODEL);
 }
