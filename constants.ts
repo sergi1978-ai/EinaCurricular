@@ -1,13 +1,9 @@
 
 import { 
   BookOpen, Globe, Languages, Calculator, Palette, Bike, ShieldCheck, 
-  Cpu, Target, Rocket, Brain, // Specific Lucide icons for subjects
-  Heart // Example for a generic fallback or future use
+  Cpu, Target, Rocket, Brain 
 } from 'lucide-react';
-import React from 'react'; // Import React for React.ReactNode
-// Importing LucideProps for accurate typing of icon components, ensuring 'size' prop is recognized.
-import type { LucideProps } from 'lucide-react';
-// Added missing imports to fix "Cannot find name" errors for types
+import React from 'react';
 import { SubjectOption, Grade } from './types';
 
 export const SUBJECTS: SubjectOption[] = [
@@ -31,8 +27,14 @@ export const TRANSVERSAL_COMPETENCIES: SubjectOption[] = [
 
 export const ALL_AREAS = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
 
-// Grade is now imported from './types'
-export const GRADES = Object.values(Grade);
+export const GRADES = [
+  Grade.First,
+  Grade.Second,
+  Grade.Third,
+  Grade.Fourth,
+  Grade.Fifth,
+  Grade.Sixth
+];
 
 export const SCHOOL_YEARS = [
   '2025-2026',
@@ -40,8 +42,6 @@ export const SCHOOL_YEARS = [
   '2027-2028'
 ];
 
-// Using React.createElement instead of JSX to avoid "Cannot find name 'size'" errors in a .ts file.
-// The record now stores React.ReactNode to accommodate the output of React.createElement.
 export const SUBJECT_ICONS: Record<string, React.ReactNode> = {
   medi: React.createElement(Globe, { size: 20 }),
   catala: React.createElement(Languages, { size: 20 }),
@@ -56,6 +56,5 @@ export const SUBJECT_ICONS: Record<string, React.ReactNode> = {
   ciutadana: React.createElement(Target, { size: 20 }),
   emprenedora: React.createElement(Rocket, { size: 20 }),
   personal: React.createElement(Brain, { size: 20 }),
-  // Fallback or generic icon
   default: React.createElement(BookOpen, { size: 20 })
 };

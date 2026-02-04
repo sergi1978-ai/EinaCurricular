@@ -23,13 +23,14 @@ import CalendarView from './components/CalendarView';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { 
   PlusCircle, ArrowLeft, Loader2, Save, School, Wand2, X, Sparkles, ChevronRight, Check, Search, Lightbulb, Flag, Target, Compass, GraduationCap, 
-  Upload, Download, AlertCircle, Settings2, Zap, BrainCircuit, Cpu
+  Upload, Download, AlertCircle
 } from 'lucide-react';
 
 type ViewType = 'dashboard' | 'calendar' | 'analytics' | 'create';
 type CreateTab = 'basics' | 'curriculum' | 'sequence' | 'evaluation';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
 
 const TAB_LABELS: Record<string, string> = {
   basics: 'Pas 1: Informació',
@@ -37,12 +38,6 @@ const TAB_LABELS: Record<string, string> = {
   sequence: 'Pas 3: Sessions',
   evaluation: 'Pas 4: Avaluació'
 };
-
-const AI_MODELS = [
-  { id: 'gemini-flash-lite-latest', name: 'Gemini Lite', desc: 'Màxima velocitat i quota alta. Ideal per a títols i idees.', icon: <Zap size={18} /> },
-  { id: 'gemini-3-flash-preview', name: 'Gemini Flash', desc: 'Molt ràpid i equilibrat. Recomanat per defecte.', icon: <Cpu size={18} /> },
-  { id: 'gemini-3-pro-preview', name: 'Gemini Pro', desc: 'Màxima intel·ligència pedagògica. Quota més limitada.', icon: <BrainCircuit size={18} /> }
-];
 
 export default function App() {
   const [view, setView] = useState<ViewType>('dashboard');
@@ -56,17 +51,6 @@ export default function App() {
   
   const [notification, setNotification] = useState<{message: string, type: 'error' | 'success'} | null>(null);
 
-  // AI Configuration State
-  const [aiConfig, setAiConfig] = useState(() => {
-    const saved = localStorage.getItem('einacurricular_ai_config');
-    return saved ? JSON.parse(saved) : {
-      simpleModel: 'gemini-3-flash-preview',
-      complexModel: 'gemini-3-flash-preview'
-    };
-  });
-
-  const [showAiSettings, setShowAiSettings] = useState(false);
-
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -77,7 +61,6 @@ export default function App() {
   const [sessionDates, setSessionDates] = useState<string[]>([]); 
   const [evaluationTools, setEvaluationTools] = useState<string[]>([]); 
   const [suggestedEvaluationTools, setSuggestedEvaluationTools] = useState<string[]>([]); 
-  const [newCustomTool, setNewCustomTool] = useState<string>(''); 
   const [evaluationToolsContent, setEvaluationToolsContent] = useState<Record<string, string>>({});
   const [selectedCurriculum, setSelectedCurriculum] = useState<CurriculumItem[]>([]);
   const [suggestions, setSuggestions] = useState<AiResponse | null>(null);
@@ -102,10 +85,6 @@ export default function App() {
     localStorage.setItem('einacurricular_data_v4', JSON.stringify(activities));
   }, [activities]);
 
-  useEffect(() => {
-    localStorage.setItem('einacurricular_ai_config', JSON.stringify(aiConfig));
-  }, [aiConfig]);
-
   const showNotification = (message: string, type: 'error' | 'success' = 'error') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 6000);
@@ -113,12 +92,13 @@ export default function App() {
 
   const handleGeminiError = (e: any) => {
     console.error("Gemini Error:", e);
-    if (e.message?.includes("429")) {
-      showNotification("Quota saturada. Prova de canviar al model 'Gemini Lite' a la configuració.", "error");
-    } else if (e.message?.includes("API_KEY_REQUIRED")) {
-      showNotification("Configura la teva API KEY.", "error");
+    const msg = e?.message || "";
+    if (msg.includes("429")) {
+      showNotification("Quota saturada de l'IA. Espera uns instants.", "error");
+    } else if (msg.includes("API_KEY_REQUIRED")) {
+      showNotification("Configura l'API KEY al servidor.", "error");
     } else {
-      showNotification("Error de l'IA. Torna-ho a provar en uns moments.", "error");
+      showNotification("Error de l'IA. Torna-ho a provar.", "error");
     }
   };
 
@@ -155,7 +135,7 @@ export default function App() {
   const resetForm = () => {
     setEditingId(null); setTitle(''); setDescription(''); setGrade(Grade.First); 
     setDetailedActivities([]); setSessionDates([]); setSelectedCurriculum([]); setSuggestions(null); 
-    setEvaluationTools([]); setSuggestedEvaluationTools([]); setNewCustomTool(''); setEvaluationToolsContent({}); 
+    setEvaluationTools([]); setSuggestedEvaluationTools([]); setEvaluationToolsContent({}); 
     setActiveTab('basics'); setNumSessions(6);
   };
 
@@ -164,8 +144,9 @@ export default function App() {
     if (!description || selectedSubjectIds.length === 0) return showNotification("Cal descripció i àrees seleccionades.", "error");
     setAiLoading(true);
     try {
-      const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
-      const res = await getCurriculumSuggestions(subNames, grade, description, aiConfig.complexModel);
+      const allPossible = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
+      const subNames = selectedSubjectIds.map(id => allPossible.find(s => s.id === id)?.name || '');
+      const res = await getCurriculumSuggestions(subNames, grade, description, DEFAULT_AI_MODEL);
       setSuggestions(res);
       showNotification("Currículum analitzat correctament.", "success");
     } catch (e: any) {
@@ -180,8 +161,9 @@ export default function App() {
     if (!title || !description) return showNotification("Omple títol i descripció.", "error");
     setSequenceLoading(true);
     try {
-      const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
-      const res = await generateDetailedActivities(title, description, grade, subNames, numSessions, aiConfig.complexModel);
+      const allPossible = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
+      const subNames = selectedSubjectIds.map(id => allPossible.find(s => s.id === id)?.name || '');
+      const res = await generateDetailedActivities(title, description, grade, subNames, numSessions, DEFAULT_AI_MODEL);
       setDetailedActivities(res);
       setSessionDates(Array(res.length).fill('')); 
       showNotification("Sessions generades amb èxit.", "success");
@@ -194,10 +176,11 @@ export default function App() {
 
   const handleSuggestEvalTools = async () => {
     if (evalLoading) return;
-    if (selectedCurriculum.filter(i => i.type === 'criteri').length === 0) return showNotification("Tria criteris d'avaluació primer.", "error");
+    const selectedCriteria = selectedCurriculum.filter(i => i.type === 'criteri');
+    if (selectedCriteria.length === 0) return showNotification("Tria criteris d'avaluació primer.", "error");
     setEvalLoading(true);
     try {
-      const tools = await suggestEvaluationTools(title, grade, selectedCurriculum.filter(i => i.type === 'criteri'), aiConfig.simpleModel);
+      const tools = await suggestEvaluationTools(title, grade, selectedCriteria, DEFAULT_AI_MODEL);
       setSuggestedEvaluationTools(tools);
       setEvaluationTools(tools); 
       showNotification("Instruments suggerits.", "success");
@@ -217,7 +200,7 @@ export default function App() {
       const criteria = selectedCurriculum.filter(i => i.type === 'criteri');
       for (const t of evaluationTools) {
         if (!contents[t]) {
-          contents[t] = await generateEvaluationToolContent(t, title, grade, criteria, aiConfig.complexModel);
+          contents[t] = await generateEvaluationToolContent(t, title, grade, criteria, DEFAULT_AI_MODEL);
           await new Promise(r => setTimeout(r, 2000));
         }
       }
@@ -235,14 +218,15 @@ export default function App() {
     if (selectedSubjectIds.length === 0) return showNotification("Tria una àrea per poder inspirar-te.", "error");
     setInspirationLoading(true);
     try {
-      const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
-      const options = await getTitleOptions(subNames, grade, title, aiConfig.simpleModel);
+      const allPossible = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
+      const subNames = selectedSubjectIds.map(id => allPossible.find(s => s.id === id)?.name || '');
+      const options = await getTitleOptions(subNames, grade, title, DEFAULT_AI_MODEL);
       
       if (options && options.length > 0) {
         setInspirationOptions(options);
         setShowInspirationModal(true);
       } else {
-        showNotification("No s'han pogut generar idees. Prova de canviar el model d'IA.", "error");
+        showNotification("No s'han pogut generar idees. Torna-ho a provar.", "error");
       }
     } catch (e) {
       handleGeminiError(e);
@@ -256,8 +240,9 @@ export default function App() {
     setShowInspirationModal(false);
     setIsGeneratingDescription(true);
     try {
-      const subNames = selectedSubjectIds.map(id => [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].find(s => s.id === id)?.name || '');
-      const desc = await getDescriptionForTitle(opt, subNames, grade, aiConfig.simpleModel);
+      const allPossible = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
+      const subNames = selectedSubjectIds.map(id => allPossible.find(s => s.id === id)?.name || '');
+      const desc = await getDescriptionForTitle(opt, subNames, grade, DEFAULT_AI_MODEL);
       setDescription(desc);
       showNotification("Descripció generada amb èxit.", "success");
     } catch (e) {
@@ -293,7 +278,7 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const parsedData = JSON.parse(e.target?.result as string);
-        if (window.confirm("Vols substituir les dades actuals per les del fitxer d'importació?")) {
+        if (Array.isArray(parsedData) && window.confirm("Vols substituir les dades actuals per les del fitxer d'importació?")) {
           setActivities(parsedData);
           showNotification("Dades importades correctament.", "success");
         }
@@ -331,9 +316,6 @@ export default function App() {
               </button>
             ))}
           </div>
-          <button onClick={() => setShowAiSettings(true)} className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-all shadow-sm border border-slate-100">
-            <Settings2 size={20} />
-          </button>
         </div>
       </nav>
 
@@ -368,7 +350,7 @@ export default function App() {
                   <ActivityCard 
                     key={act.id} 
                     activity={act} 
-                    activitySubjectIds={act.subjectIds} 
+                    activitySubjectIds={act.subjectIds || []} 
                     onDelete={id => setActivities(p => p.filter(a => a.id !== id))} 
                     onView={setViewingActivity} 
                     onEdit={() => { 
@@ -647,76 +629,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal Configuració IA */}
-      {showAiSettings && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
-            <div className="flex justify-between items-center mb-10">
-              <div className="flex items-center gap-6">
-                <div className="bg-blue-100 text-blue-600 p-4 rounded-2xl"><Settings2 size={32} /></div>
-                <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">Configuració de l'IA</h2>
-                  <p className="text-slate-400 font-bold">Gestiona els models per optimitzar la quota.</p>
-                </div>
-              </div>
-              <button onClick={() => setShowAiSettings(false)} className="text-slate-300 hover:text-slate-900 transition-colors"><X size={32} /></button>
-            </div>
-            
-            <div className="space-y-10">
-              <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-2">Model per a tasques ràpides (Títols, idees...)</label>
-                <div className="grid grid-cols-1 gap-3">
-                  {AI_MODELS.map(m => (
-                    <button 
-                      key={m.id} 
-                      onClick={() => setAiConfig(prev => ({...prev, simpleModel: m.id}))}
-                      className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${aiConfig.simpleModel === m.id ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-slate-50 hover:border-slate-200'}`}
-                    >
-                      <div className={`${aiConfig.simpleModel === m.id ? 'text-blue-600' : 'text-slate-300'}`}>{m.icon}</div>
-                      <div>
-                        <div className="font-black text-slate-900 text-sm">{m.name}</div>
-                        <div className="text-[10px] text-slate-500 font-medium">{m.desc}</div>
-                      </div>
-                      {aiConfig.simpleModel === m.id && <Check className="ml-auto text-blue-600" size={20} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-2">Model per a tasques de raonament (Sessions, Currículum...)</label>
-                <div className="grid grid-cols-1 gap-3">
-                  {AI_MODELS.map(m => (
-                    <button 
-                      key={m.id} 
-                      onClick={() => setAiConfig(prev => ({...prev, complexModel: m.id}))}
-                      className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${aiConfig.complexModel === m.id ? 'bg-blue-50 border-blue-500' : 'bg-slate-50 border-slate-50 hover:border-slate-200'}`}
-                    >
-                      <div className={`${aiConfig.complexModel === m.id ? 'text-blue-600' : 'text-slate-300'}`}>{m.icon}</div>
-                      <div>
-                        <div className="font-black text-slate-900 text-sm">{m.name}</div>
-                        <div className="text-[10px] text-slate-500 font-medium">{m.desc}</div>
-                      </div>
-                      {aiConfig.complexModel === m.id && <Check className="ml-auto text-blue-600" size={20} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 flex gap-4">
-                 <AlertCircle className="text-amber-500 shrink-0" size={20} />
-                 <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
-                   Si reps l'error "Rate Limit Exceeded" (429), et recomanem passar ambdós selectors al model <strong>Gemini Lite</strong> fins que es restableixi la teva quota.
-                 </p>
-              </div>
-
-              <button onClick={() => setShowAiSettings(false)} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all shadow-xl active:scale-95">Guardar Configuració</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal d'Inspiració */}
       {showInspirationModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
           <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
@@ -757,7 +669,15 @@ export default function App() {
         </div>
       )}
 
-      {viewingActivity && <ActivityDetailsModal activity={viewingActivity} onClose={() => setViewingActivity(null)} activitySubjectIds={viewingActivity.subjectIds} onDelete={id => setActivities(p => p.filter(a => a.id !== id))} showNotification={showNotification} />}
+      {viewingActivity && (
+        <ActivityDetailsModal 
+          activity={viewingActivity} 
+          onClose={() => setViewingActivity(null)} 
+          activitySubjectIds={viewingActivity.subjectIds || []} 
+          onDelete={id => setActivities(p => p.filter(a => a.id !== id))} 
+          showNotification={showNotification} 
+        />
+      )}
       
       <footer className="bg-white border-t border-slate-100 py-10 mt-auto shrink-0">
         <div className="max-w-[1400px] mx-auto px-10 flex flex-col md:flex-row justify-between items-center gap-8">
