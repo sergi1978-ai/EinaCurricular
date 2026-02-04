@@ -96,9 +96,9 @@ export default function App() {
     if (msg.includes("429")) {
       showNotification("Quota saturada de l'IA. Espera uns instants.", "error");
     } else if (msg.includes("API_KEY_REQUIRED")) {
-      showNotification("Configura l'API KEY al servidor.", "error");
+      showNotification("No s'ha detectat la clau d'API de Gemini.", "error");
     } else {
-      showNotification("Error de l'IA. Torna-ho a provar.", "error");
+      showNotification(msg || "Error de l'IA. Torna-ho a provar.", "error");
     }
   };
 
@@ -226,7 +226,7 @@ export default function App() {
         setInspirationOptions(options);
         setShowInspirationModal(true);
       } else {
-        showNotification("No s'han pogut generar idees. Torna-ho a provar.", "error");
+        showNotification("No s'han rebut idees de l'IA.", "error");
       }
     } catch (e) {
       handleGeminiError(e);
