@@ -2,25 +2,20 @@
 import { GoogleGenAI } from "@google/genai";
 import { AiResponse, CurriculumItem, Session } from "../types";
 
-/**
- * Neteja la resposta de la IA per assegurar que és un JSON vàlid.
- */
-const cleanJsonString = (str: string): string => {
-  let cleaned = str.trim();
-  if (cleaned.includes("```")) {
-    cleaned = cleaned.replace(/```json/g, "").replace(/```/g, "").trim();
+// ... (funciones auxiliares cleanJsonString i sleep se mantienen igual)
+
+async function callGemini(prompt: string, model: string, isJson: boolean = false, retryCount = 0) {
+  // Cambiamos process.env por import.meta.env
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+  
+  if (!apiKey) {
+    throw new Error("API_KEY_REQUIRED");
   }
-  return cleaned;
-};
 
-/**
- * Funció auxiliar per esperar un temps determinat (exponential backoff)
- */
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * Helper principal per comunicar-se amb l'API de Gemini
- */
+  const MAX_RETRIES = 2;
+  // ... (resto de la función igual)
+}
+// ...
 async function callGemini(prompt: string, model: string, isJson: boolean = false, retryCount = 0) {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
