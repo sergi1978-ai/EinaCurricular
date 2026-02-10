@@ -1,7 +1,8 @@
 
 import { 
-  BookOpen, Globe, Languages, Calculator, Palette, Bike, ShieldCheck, 
-  Cpu, Target, Rocket, Brain 
+  BookOpen, Compass, BookText, Type, Languages, 
+  Divide, Palette, Dumbbell, HeartHandshake, Feather, 
+  Cpu, Users2, Zap, Smile, Rocket, GraduationCap
 } from 'lucide-react';
 import React from 'react';
 import { SubjectOption, Grade } from './types';
@@ -43,18 +44,18 @@ export const SCHOOL_YEARS = [
 ];
 
 export const SUBJECT_ICONS: Record<string, React.ReactNode> = {
-  medi: React.createElement(Globe, { size: 20 }),
-  catala: React.createElement(Languages, { size: 20 }),
-  castella: React.createElement(Languages, { size: 20 }),
+  medi: React.createElement(Compass, { size: 20 }),
+  catala: React.createElement(BookText, { size: 20 }),
+  castella: React.createElement(Type, { size: 20 }),
   angles: React.createElement(Languages, { size: 20 }),
-  matematiques: React.createElement(Calculator, { size: 20 }),
+  matematiques: React.createElement(Divide, { size: 20 }),
   artistica: React.createElement(Palette, { size: 20 }),
-  fisica: React.createElement(Bike, { size: 20 }),
-  valors: React.createElement(ShieldCheck, { size: 20 }),
-  aranes: React.createElement(Languages, { size: 20 }),
+  fisica: React.createElement(Dumbbell, { size: 20 }),
+  valors: React.createElement(HeartHandshake, { size: 20 }),
+  aranes: React.createElement(Feather, { size: 20 }),
   digital: React.createElement(Cpu, { size: 20 }),
-  ciutadana: React.createElement(Target, { size: 20 }),
-  emprenedora: React.createElement(Rocket, { size: 20 }),
-  personal: React.createElement(Brain, { size: 20 }),
-  default: React.createElement(BookOpen, { size: 20 })
+  ciutadana: React.createElement(Users2, { size: 20 }),
+  emprenedora: React.createElement(Zap, { size: 20 }),
+  personal: React.createElement(Smile, { size: 20 }),
+  default: React.createElement(GraduationCap, { size: 20 })
 };

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Activity } from '../types';
 import { 
-  X, Layers, FileText, Trash2, ClipboardCheck, AlertTriangle, Sparkles, Copy, Check, Target, Lightbulb, TrendingUp, BookOpen, Handshake, ScrollText
+  X, Layers, FileText, Trash2, ClipboardCheck, AlertTriangle, Sparkles, Copy, Check, Target, Lightbulb, TrendingUp, BookOpen, Handshake, ScrollText, Pencil
 } from 'lucide-react';
 import { SUBJECT_ICONS } from '../constants'; // Import SUBJECT_ICONS from constants
 
@@ -11,6 +11,7 @@ interface ActivityDetailsModalProps {
   onClose: () => void;
   activitySubjectIds: string[]; // Changed from subjectIcon
   onDelete?: (id: string) => void;
+  onEdit?: (activity: Activity) => void; // Nova propietat
   showNotification: (message: string, type: 'error' | 'success') => void;
 }
 
@@ -57,7 +58,7 @@ const markdownToHtml = (markdownText: string | null | undefined): string => {
   return processedLines.join('\n');
 };
 
-const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, onClose, activitySubjectIds, onDelete, showNotification }) => {
+const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, onClose, activitySubjectIds, onDelete, onEdit, showNotification }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   
@@ -260,7 +261,15 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
             </div>
             <h2 className="text-3xl font-black text-slate-900 leading-tight tracking-tight break-words">{activity.title}</h2>
           </div>
-          <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {onEdit && (
+              <button 
+                onClick={() => onEdit(activity)} 
+                className="flex items-center justify-center gap-3 px-8 py-5 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.1em] bg-white text-amber-600 border-2 border-amber-100 hover:border-amber-400 transition-all shadow-md active:scale-95"
+              >
+                <Pencil size={18} /> Editar SA
+              </button>
+            )}
             <button 
               onClick={copyToGoogleDocs} 
               className={`flex items-center justify-center gap-4 px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 border-2 ${copied ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-900 text-white border-slate-900 hover:bg-black'}`}

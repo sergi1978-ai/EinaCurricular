@@ -23,7 +23,7 @@ import CalendarView from './components/CalendarView';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { 
   PlusCircle, ArrowLeft, Loader2, Save, School, Wand2, X, Sparkles, ChevronRight, Check, Search, Lightbulb, Flag, Target, Compass, GraduationCap, 
-  Upload, Download, AlertCircle
+  Upload, Download, AlertCircle, ExternalLink
 } from 'lucide-react';
 
 type ViewType = 'dashboard' | 'calendar' | 'analytics' | 'create';
@@ -95,11 +95,24 @@ export default function App() {
     const msg = e?.message || "";
     if (msg.includes("429")) {
       showNotification("Quota saturada de l'IA. Espera uns instants.", "error");
-    } else if (msg.includes("API_KEY_REQUIRED")) {
-      showNotification("No s'ha detectat la clau d'API de Gemini.", "error");
     } else {
       showNotification(msg || "Error de l'IA. Torna-ho a provar.", "error");
     }
+  };
+
+  const startEditing = (act: Activity) => {
+    setEditingId(act.id); 
+    setTitle(act.title); 
+    setDescription(act.description); 
+    setGrade(act.grade);
+    setSelectedSubjectIds(act.subjectIds || []); 
+    setDetailedActivities(act.detailedActivities || []);
+    setSessionDates(act.sessionDates || []); 
+    setSelectedCurriculum([...(act.competencies || []), ...(act.criteria || []), ...(act.sabers || [])]);
+    setEvaluationTools(act.evaluationTools || []); 
+    setEvaluationToolsContent(act.evaluationToolsContent || {});
+    setView('create'); 
+    setViewingActivity(null); // Close modal if open
   };
 
   const handleSave = () => {
@@ -353,14 +366,7 @@ export default function App() {
                     activitySubjectIds={act.subjectIds || []} 
                     onDelete={id => setActivities(p => p.filter(a => a.id !== id))} 
                     onView={setViewingActivity} 
-                    onEdit={() => { 
-                      setEditingId(act.id); setTitle(act.title); setDescription(act.description); setGrade(act.grade);
-                      setSelectedSubjectIds(act.subjectIds || []); setDetailedActivities(act.detailedActivities || []);
-                      setSessionDates(act.sessionDates || []); 
-                      setSelectedCurriculum([...(act.competencies || []), ...(act.criteria || []), ...(act.sabers || [])]);
-                      setEvaluationTools(act.evaluationTools || []); setEvaluationToolsContent(act.evaluationToolsContent || {});
-                      setView('create'); 
-                    }} 
+                    onEdit={() => startEditing(act)} 
                     onCopy={a => {
                       const copy = {...a, id: generateId(), title: a.title + ' (Còpia)', createdAt: Date.now()};
                       setActivities(p => [copy, ...p]);
@@ -373,7 +379,16 @@ export default function App() {
           </div>
         )}
 
-        {view === 'calendar' && <CalendarView activities={activities} onEditActivity={id => { const a = activities.find(x => x.id === id); if(a) { setEditingId(a.id); setTitle(a.title); setView('create'); } }} />}
+        {view === 'calendar' && (
+          <CalendarView 
+            activities={activities} 
+            onEditActivity={id => { 
+              const a = activities.find(x => x.id === id); 
+              if(a) setViewingActivity(a); 
+            }} 
+          />
+        )}
+        
         {view === 'analytics' && <AnalyticsPanel activities={activities} />}
 
         {view === 'create' && (
@@ -675,6 +690,7 @@ export default function App() {
           onClose={() => setViewingActivity(null)} 
           activitySubjectIds={viewingActivity.subjectIds || []} 
           onDelete={id => setActivities(p => p.filter(a => a.id !== id))} 
+          onEdit={startEditing}
           showNotification={showNotification} 
         />
       )}
