@@ -29,6 +29,7 @@ import {
 type ViewType = 'dashboard' | 'calendar' | 'analytics' | 'create';
 type CreateTab = 'basics' | 'curriculum' | 'sequence' | 'evaluation';
 
+const APP_VERSION = "4.1";
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
 
@@ -272,16 +273,30 @@ export default function App() {
   }, [activities, searchQuery]);
 
   const handleExport = () => {
-    const data = JSON.stringify(activities, null, 2);
+    // Creem un paquet d'exportació professional amb metadades
+    const exportData = {
+      app: "Eina Curricular",
+      version: APP_VERSION,
+      exportDate: new Date().toISOString(),
+      totalActivities: activities.length,
+      activities: activities
+    };
+
+    const data = JSON.stringify(exportData, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    
+    // Nom del fitxer amb data i context
+    const timestamp = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `backup_programacions_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `EinaCurricular_v${APP_VERSION}_${timestamp}_${activities.length}SA.json`;
+    
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    showNotification("Exportació realitzada amb èxit.", "success");
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -290,14 +305,66 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const parsedData = JSON.parse(e.target?.result as string);
-        if (Array.isArray(parsedData) && window.confirm("Vols substituir les dades actuals per les del fitxer d'importació?")) {
-          setActivities(parsedData);
-          showNotification("Dades importades correctament.", "success");
+        const result = e.target?.result;
+        if (typeof result !== 'string') return;
+        
+        const parsedData = JSON.parse(result);
+        let dataToImport: Activity[] = [];
+
+        // 1. Intentem llegir el format de paquet professional
+        if (parsedData.app === "Eina Curricular" && Array.isArray(parsedData.activities)) {
+          dataToImport = parsedData.activities;
+        } 
+        // 2. Si no, busquem recursivament (backward compatibility o fitxers compartits informalment)
+        else {
+          const findActivities = (obj: any): Activity[] => {
+            if (Array.isArray(obj)) {
+              if (obj.length === 0 || (obj[0] && typeof obj[0] === 'object' && ('title' in obj[0] || 'grade' in obj[0]))) {
+                return obj;
+              }
+            }
+            if (obj && typeof obj === 'object') {
+              for (const key in obj) {
+                const res = findActivities(obj[key]);
+                if (res.length > 0) return res;
+              }
+            }
+            return [];
+          };
+          dataToImport = findActivities(parsedData);
+        }
+
+        if (dataToImport.length > 0) {
+          const mode = window.confirm(
+            `S'han trobat ${dataToImport.length} programacions.\n\n` +
+            `D'ACORD: AFEGIR-LES a la llista actual (conserves el que tens).\n` +
+            `CANCEL·LAR: SUBSTITUIR tota la llista (perds el que tens actualment).`
+          );
+          
+          if (mode) {
+            // AFEGIR (Merge)
+            const cleanedData = dataToImport.map(a => ({
+              ...a,
+              id: activities.some(existing => existing.id === a.id) ? generateId() : (a.id || generateId()),
+              createdAt: a.createdAt || Date.now()
+            }));
+            setActivities(prev => [...cleanedData, ...prev]);
+            showNotification(`S'han afegit ${cleanedData.length} programacions noves.`, "success");
+          } else {
+            // SUBSTITUIR
+            if (window.confirm("CONFIRMA: Estàs SEGUR que vols ESBORRAR les teves SAs i posar les del fitxer?")) {
+              setActivities(dataToImport);
+              showNotification("Dades substituïdes correctament.", "success");
+            }
+          }
+          setView('dashboard');
+        } else {
+          showNotification("El fitxer no conté cap Situació d'Aprenentatge compatible.", "error");
         }
       } catch (error) {
-        showNotification("Fitxer no vàlid.", "error");
+        showNotification("Error: El fitxer JSON està corrupte o no és vàlid.", "error");
       }
+      if (event.target) event.target.value = '';
     };
     reader.readAsText(file);
   };
