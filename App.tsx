@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Grade, Activity, CurriculumItem, AiResponse, Session } from './types';
 import { 
@@ -222,17 +221,16 @@ export default function App() {
 
         if (itemsToImport.length === 0) throw new Error("Format no reconegut");
 
-        const mode = window.confirm(`S'han trobat ${itemsToImport.length} SAs.\n\nD'acord: Afegir-les a la llista actual.\nCancel·lar: Esborrar tot i carregar només aquestes.`);
+        // Afegir directament a la llista actual generant nous IDs per evitar col·lisions
+        const cleaned = itemsToImport.map(item => ({
+          ...item, 
+          id: generateId(),
+          createdAt: Date.now() // Actualitzem la data perquè surtin al principi
+        }));
         
-        if (mode) {
-          // Fusionar (evitant duplicats d'ID si cal)
-          const cleaned = itemsToImport.map(item => ({...item, id: generateId()}));
-          setActivities(prev => [...cleaned, ...prev]);
-          showNotification(`S'han importat ${itemsToImport.length} SAs.`, "success");
-        } else {
-          setActivities(itemsToImport);
-          showNotification("Base de dades substituïda.", "success");
-        }
+        setActivities(prev => [...cleaned, ...prev]);
+        showNotification(`S'han afegit ${itemsToImport.length} SAs a la teva col·lecció.`, "success");
+        
       } catch (err) {
         showNotification("Error en importar: El fitxer no és vàlid.", "error");
       }
@@ -698,7 +696,6 @@ export default function App() {
 
               {activeTab === 'evaluation' && (
                 <div className="animate-fade-in space-y-12">
-                  {/* ... same evaluation tab code as before ... */}
                   <div className="space-y-8 bg-blue-50/30 p-10 rounded-[2.5rem] border border-blue-100">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                       <div className="flex-1">
@@ -755,7 +752,7 @@ export default function App() {
           </div>
         )}
       </main>
-      {/* ... rest of App component ... */}
+
       {showInspirationModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
           <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
@@ -818,7 +815,6 @@ export default function App() {
              <School size={24} />
              <div className="h-8 w-px bg-slate-100"></div>
              <div className="flex items-center gap-4">
-               {/* Sistema de Gestió de Dades */}
                <div className="flex items-center bg-slate-50 p-1 rounded-2xl border border-slate-100">
                  <button 
                   onClick={handleExportAll} 
