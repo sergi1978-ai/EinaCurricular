@@ -8,7 +8,6 @@ import { AiResponse, CurriculumItem, Session } from "../types";
  */
 const cleanJsonString = (str: string): string => {
   let cleaned = str.trim();
-  // Busca el primer '{' o '[' i l'últim '}' o ']'
   const firstBrace = cleaned.indexOf('{');
   const firstBracket = cleaned.indexOf('[');
   const lastBrace = cleaned.lastIndexOf('}');
@@ -24,25 +23,14 @@ const cleanJsonString = (str: string): string => {
   return cleaned;
 };
 
-/**
- * Funció auxiliar per esperar un temps determinat (exponential backoff)
- */
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Helper principal per comunicar-se amb l'API de Gemini
- */
-// Fix: Added explicit return type Promise<string> to callGemini
 async function callGemini(prompt: string, model: string, isJson: boolean = false, retryCount = 0): Promise<string> {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY_REQUIRED");
-  }
-
   const MAX_RETRIES = 2;
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    // Initialization must use the named parameter and process.env.API_KEY directly.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
@@ -57,20 +45,16 @@ async function callGemini(prompt: string, model: string, isJson: boolean = false
     return isJson ? cleanJsonString(text) : text;
   } catch (error: any) {
     console.error(`Error a l'intent ${retryCount + 1}:`, error.message);
-    
-    // Gestió de quota (429) - Espera i reintenta
     if (error.message?.includes("429") && retryCount < MAX_RETRIES) {
       const waitTime = Math.pow(2, retryCount) * 3000 + Math.random() * 1000;
       await sleep(waitTime);
       return callGemini(prompt, model, isJson, retryCount + 1);
     }
-
     throw error;
   }
 }
 
 export const getTitleOptions = async (subjects: string[], grade: string, keywords: string, model: string): Promise<{title: string, style: string}[]> => {
-  // Fix: Used double quotes for the fallback string inside the template expression to avoid escaping issues with single quotes like "d'actualitat"
   const prompt = `Ets un expert en el currículum català (Decret 175/2022). 
   Genera exactament 6 títols suggeridors i creatius per a una Situació d'Aprenentatge de ${grade} de Primària. 
   Àrees: ${subjects.join(', ')}. 
@@ -111,12 +95,20 @@ export const generateDetailedActivities = async (title: string, description: str
   return data.sessions || [];
 };
 
-export const getCurriculumSuggestions = async (subjects: string[], grade: string, activityDescription: string, model: string): Promise<AiResponse> => {
+export const getCurriculumSuggestions = async (subjectsWithIds: {id: string, name: string}[], grade: string, activityDescription: string, model: string): Promise<AiResponse> => {
+  const subjectsStr = subjectsWithIds.map(s => `${s.name} (id: ${s.id})`).join(', ');
   const prompt = `Basat en el Decret 175/2022 de Catalunya, selecciona Competències Específiques, Criteris d'Avaluació i Sabers Bàsics per a aquesta activitat: "${activityDescription}". 
-  Nivell: ${grade}. Àrees: ${subjects.join(', ')}.
+  Nivell: ${grade}. 
+  Àrees disponibles (utilitza exactament aquests IDs per al camp subjectId): ${subjectsStr}.
+  
+  IMPORTANT: Per a cada element (competencia, criteri, saber), indica a quina àrea pertany mitjançant el camp 'subjectId'.
   
   Respon EXCLUSIVAMENT amb JSON: 
-  {"competencies": [{"code": "CE1", "text": "..."}], "criteria": [{"code": "Crit. 1.1", "text": "..."}], "sabers": [{"code": "Saber 1", "text": "..."}]}`;
+  {
+    "competencies": [{"code": "CE1", "text": "...", "subjectId": "id_de_larea"}], 
+    "criteria": [{"code": "Crit. 1.1", "text": "...", "subjectId": "id_de_larea"}], 
+    "sabers": [{"code": "Saber 1", "text": "...", "subjectId": "id_de_larea"}]
+  }`;
 
   const jsonStr = await callGemini(prompt, model, true);
   return JSON.parse(jsonStr);

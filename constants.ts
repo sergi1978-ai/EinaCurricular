@@ -8,22 +8,22 @@ import React from 'react';
 import { SubjectOption, Grade } from './types';
 
 export const SUBJECTS: SubjectOption[] = [
-  { id: 'medi', name: 'Coneixement del Medi Natural, Social i Cultural', isTransversal: false },
-  { id: 'catala', name: 'Llengua Catalana i Literatura', isTransversal: false },
-  { id: 'castella', name: 'Llengua Castellana i Literatura', isTransversal: false },
-  { id: 'angles', name: 'Llengua Estrangera (Anglès)', isTransversal: false },
-  { id: 'matematiques', name: 'Matemàtiques', isTransversal: false },
-  { id: 'artistica', name: 'Educació Artística (Plàstica, Música i Dansa)', isTransversal: false },
-  { id: 'fisica', name: 'Educació Física', isTransversal: false },
-  { id: 'valors', name: 'Educació en Valors Cívics i Ètics', isTransversal: false },
-  { id: 'aranes', name: "Aranès i Literatura a l'Aran", isTransversal: false }
+  { id: 'medi', name: 'Coneixement del Medi Natural, Social i Cultural', color: 'emerald', isTransversal: false },
+  { id: 'catala', name: 'Llengua Catalana i Literatura', color: 'orange', isTransversal: false },
+  { id: 'castella', name: 'Llengua Castellana i Literatura', color: 'amber', isTransversal: false },
+  { id: 'angles', name: 'Llengua Estrangera (Anglès)', color: 'purple', isTransversal: false },
+  { id: 'matematiques', name: 'Matemàtiques', color: 'blue', isTransversal: false },
+  { id: 'artistica', name: 'Educació Artística (Plàstica, Música i Dansa)', color: 'rose', isTransversal: false },
+  { id: 'fisica', name: 'Educació Física', color: 'cyan', isTransversal: false },
+  { id: 'valors', name: 'Educació en Valors Cívics i Ètics', color: 'teal', isTransversal: false },
+  { id: 'aranes', name: "Aranès i Literatura a l'Aran", color: 'red', isTransversal: false }
 ];
 
 export const TRANSVERSAL_COMPETENCIES: SubjectOption[] = [
-  { id: 'digital', name: 'Competència Digital', isTransversal: true },
-  { id: 'ciutadana', name: 'Competència Ciutadana', isTransversal: true },
-  { id: 'emprenedora', name: 'Competència Emprenedora', isTransversal: true },
-  { id: 'personal', name: "Competència Personal, Social i d'Aprendre a Aprendre", isTransversal: true },
+  { id: 'digital', name: 'Competència Digital', color: 'slate', isTransversal: true },
+  { id: 'ciutadana', name: 'Competència Ciutadana', color: 'indigo', isTransversal: true },
+  { id: 'emprenedora', name: 'Competència Emprenedora', color: 'violet', isTransversal: true },
+  { id: 'personal', name: "Competència Personal, Social i d'Aprendre a Aprendre", color: 'fuchsia', isTransversal: true },
 ];
 
 export const ALL_AREAS = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];

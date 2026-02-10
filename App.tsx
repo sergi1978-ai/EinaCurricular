@@ -23,13 +23,15 @@ import CalendarView from './components/CalendarView';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { 
   PlusCircle, ArrowLeft, Loader2, Save, School, Wand2, X, Sparkles, ChevronRight, Check, Search, Lightbulb, Flag, Target, Compass, GraduationCap, 
-  Upload, Download, AlertCircle, ExternalLink
+  Upload, Download, AlertCircle, ChevronUp, ChevronDown, Trash2, Plus
 } from 'lucide-react';
 
 type ViewType = 'dashboard' | 'calendar' | 'analytics' | 'create';
 type CreateTab = 'basics' | 'curriculum' | 'sequence' | 'evaluation';
 
-const APP_VERSION = "4.1";
+const APP_VERSION = "4.5";
+const STORAGE_KEY = 'einacurricular_data_v4';
+
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
 
@@ -45,12 +47,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<CreateTab>('basics');
   const [activities, setActivities] = useState<Activity[]>(() => {
     try {
-      const saved = localStorage.getItem('einacurricular_data_v4');
+      const saved = localStorage.getItem(STORAGE_KEY);
       return saved ? JSON.parse(saved) : [];
     } catch (e) { return []; }
   });
   
   const [notification, setNotification] = useState<{message: string, type: 'error' | 'success'} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -80,10 +83,8 @@ export default function App() {
   const [evalLoading, setEvalLoading] = useState(false);
   const [generatingToolContent, setGeneratingToolContent] = useState(false); 
 
-  const fileInputRef = useRef<HTMLInputElement>(null); 
-
   useEffect(() => {
-    localStorage.setItem('einacurricular_data_v4', JSON.stringify(activities));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(activities));
   }, [activities]);
 
   const showNotification = (message: string, type: 'error' | 'success' = 'error') => {
@@ -113,13 +114,17 @@ export default function App() {
     setEvaluationTools(act.evaluationTools || []); 
     setEvaluationToolsContent(act.evaluationToolsContent || {});
     setView('create'); 
-    setViewingActivity(null); // Close modal if open
+    setViewingActivity(null); 
   };
 
   const handleSave = () => {
     if (!title.trim()) return showNotification("Cal posar un títol a la SA", "error");
     const allSubs = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
     const subNames = selectedSubjectIds.map(id => allSubs.find(s => s.id === id)?.name || '').join(' + ');
+
+    const primarySubjectId = selectedSubjectIds[0];
+    const primarySubject = allSubs.find(s => s.id === primarySubjectId);
+    const saColor = primarySubject ? `bg-${primarySubject.color}-600` : 'bg-blue-600';
 
     const updatedActivity: Activity = {
       id: editingId || generateId(),
@@ -137,7 +142,7 @@ export default function App() {
       criteria: selectedCurriculum.filter(i => i.type === 'criteri'),
       sabers: selectedCurriculum.filter(i => i.type === 'saber'),
       createdAt: editingId ? (activities.find(a => a.id === editingId)?.createdAt || Date.now()) : Date.now(),
-      color: 'bg-blue-600' 
+      color: saColor
     };
 
     setActivities(prev => [updatedActivity, ...prev.filter(a => a.id !== updatedActivity.id)]);
@@ -153,14 +158,148 @@ export default function App() {
     setActiveTab('basics'); setNumSessions(6);
   };
 
+  // --- Sistema d'Exportació/Importació ---
+  
+  const triggerDownload = (data: string, fileName: string) => {
+    const blob = new Blob([data], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
+  const handleExportAll = () => {
+    if (activities.length === 0) return showNotification("No hi ha dades per exportar.", "error");
+    const exportData = {
+      app: "Eina Curricular",
+      version: APP_VERSION,
+      exportDate: new Date().toISOString(),
+      type: "backup_total",
+      data: activities
+    };
+    triggerDownload(JSON.stringify(exportData, null, 2), `Backup_SAs_${new Date().toISOString().slice(0, 10)}.json`);
+    showNotification("Exportació de totes les SAs completada.", "success");
+  };
+
+  const handleExportSingle = (activity: Activity) => {
+    const exportData = {
+      app: "Eina Curricular",
+      version: APP_VERSION,
+      exportDate: new Date().toISOString(),
+      type: "sa_individual",
+      data: [activity]
+    };
+    const fileName = `SA_${activity.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+    triggerDownload(JSON.stringify(exportData, null, 2), fileName);
+    showNotification(`"${activity.title}" exportada correctament.`, "success");
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+        
+        // Validació de format
+        let itemsToImport: Activity[] = [];
+        if (parsed.app === "Eina Curricular" && Array.isArray(parsed.data)) {
+          itemsToImport = parsed.data;
+        } else if (Array.isArray(parsed)) {
+          itemsToImport = parsed;
+        } else if (parsed.title && parsed.description) {
+          itemsToImport = [parsed];
+        }
+
+        if (itemsToImport.length === 0) throw new Error("Format no reconegut");
+
+        const mode = window.confirm(`S'han trobat ${itemsToImport.length} SAs.\n\nD'acord: Afegir-les a la llista actual.\nCancel·lar: Esborrar tot i carregar només aquestes.`);
+        
+        if (mode) {
+          // Fusionar (evitant duplicats d'ID si cal)
+          const cleaned = itemsToImport.map(item => ({...item, id: generateId()}));
+          setActivities(prev => [...cleaned, ...prev]);
+          showNotification(`S'han importat ${itemsToImport.length} SAs.`, "success");
+        } else {
+          setActivities(itemsToImport);
+          showNotification("Base de dades substituïda.", "success");
+        }
+      } catch (err) {
+        showNotification("Error en importar: El fitxer no és vàlid.", "error");
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  // --- Sessions Control ---
+
+  const handleAddSession = () => {
+    const newSession: Session = {
+      title: 'Nova Sessió',
+      objective: '',
+      methodology: '',
+      steps: '',
+      evaluation: '',
+      dua: ''
+    };
+    setDetailedActivities(prev => [...prev, newSession]);
+    setSessionDates(prev => [...prev, '']);
+  };
+
+  const handleRemoveSession = (idx: number) => {
+    if (window.confirm("Vols eliminar aquesta sessió?")) {
+      setDetailedActivities(prev => prev.filter((_, i) => i !== idx));
+      setSessionDates(prev => prev.filter((_, i) => i !== idx));
+    }
+  };
+
+  const handleMoveSession = (idx: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && idx === 0) return;
+    if (direction === 'down' && idx === detailedActivities.length - 1) return;
+
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    
+    const newSessions = [...detailedActivities];
+    [newSessions[idx], newSessions[newIdx]] = [newSessions[newIdx], newSessions[idx]];
+    
+    const newDates = [...sessionDates];
+    [newDates[idx], newDates[newIdx]] = [newDates[newIdx], newDates[idx]];
+
+    setDetailedActivities(newSessions);
+    setSessionDates(newDates);
+  };
+
+  const updateSessionField = (idx: number, field: keyof Session, value: string) => {
+    setDetailedActivities(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: value };
+      return copy;
+    });
+  };
+
+  // --- IA Control ---
+
   const handleAiCurriculum = async () => {
     if (aiLoading) return;
     if (!description || selectedSubjectIds.length === 0) return showNotification("Cal descripció i àrees seleccionades.", "error");
     setAiLoading(true);
     try {
       const allPossible = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
-      const subNames = selectedSubjectIds.map(id => allPossible.find(s => s.id === id)?.name || '');
-      const res = await getCurriculumSuggestions(subNames, grade, description, DEFAULT_AI_MODEL);
+      const selectedSubjectsInfo = selectedSubjectIds.map(id => {
+        const s = allPossible.find(x => x.id === id);
+        return { id: id, name: s?.name || '' };
+      });
+      const res = await getCurriculumSuggestions(selectedSubjectsInfo, grade, description, DEFAULT_AI_MODEL);
       setSuggestions(res);
       showNotification("Currículum analitzat correctament.", "success");
     } catch (e: any) {
@@ -271,103 +410,6 @@ export default function App() {
       .filter(a => a.title.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [activities, searchQuery]);
-
-  const handleExport = () => {
-    // Creem un paquet d'exportació professional amb metadades
-    const exportData = {
-      app: "Eina Curricular",
-      version: APP_VERSION,
-      exportDate: new Date().toISOString(),
-      totalActivities: activities.length,
-      activities: activities
-    };
-
-    const data = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    
-    // Nom del fitxer amb data i context
-    const timestamp = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `EinaCurricular_v${APP_VERSION}_${timestamp}_${activities.length}SA.json`;
-    
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showNotification("Exportació realitzada amb èxit.", "success");
-  };
-
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const result = e.target?.result;
-        if (typeof result !== 'string') return;
-        
-        const parsedData = JSON.parse(result);
-        let dataToImport: Activity[] = [];
-
-        // 1. Intentem llegir el format de paquet professional
-        if (parsedData.app === "Eina Curricular" && Array.isArray(parsedData.activities)) {
-          dataToImport = parsedData.activities;
-        } 
-        // 2. Si no, busquem recursivament (backward compatibility o fitxers compartits informalment)
-        else {
-          const findActivities = (obj: any): Activity[] => {
-            if (Array.isArray(obj)) {
-              if (obj.length === 0 || (obj[0] && typeof obj[0] === 'object' && ('title' in obj[0] || 'grade' in obj[0]))) {
-                return obj;
-              }
-            }
-            if (obj && typeof obj === 'object') {
-              for (const key in obj) {
-                const res = findActivities(obj[key]);
-                if (res.length > 0) return res;
-              }
-            }
-            return [];
-          };
-          dataToImport = findActivities(parsedData);
-        }
-
-        if (dataToImport.length > 0) {
-          const mode = window.confirm(
-            `S'han trobat ${dataToImport.length} programacions.\n\n` +
-            `D'ACORD: AFEGIR-LES a la llista actual (conserves el que tens).\n` +
-            `CANCEL·LAR: SUBSTITUIR tota la llista (perds el que tens actualment).`
-          );
-          
-          if (mode) {
-            // AFEGIR (Merge)
-            const cleanedData = dataToImport.map(a => ({
-              ...a,
-              id: activities.some(existing => existing.id === a.id) ? generateId() : (a.id || generateId()),
-              createdAt: a.createdAt || Date.now()
-            }));
-            setActivities(prev => [...cleanedData, ...prev]);
-            showNotification(`S'han afegit ${cleanedData.length} programacions noves.`, "success");
-          } else {
-            // SUBSTITUIR
-            if (window.confirm("CONFIRMA: Estàs SEGUR que vols ESBORRAR les teves SAs i posar les del fitxer?")) {
-              setActivities(dataToImport);
-              showNotification("Dades substituïdes correctament.", "success");
-            }
-          }
-          setView('dashboard');
-        } else {
-          showNotification("El fitxer no conté cap Situació d'Aprenentatge compatible.", "error");
-        }
-      } catch (error) {
-        showNotification("Error: El fitxer JSON està corrupte o no és vàlid.", "error");
-      }
-      if (event.target) event.target.value = '';
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <div className="min-h-screen bg-[#fcfdfe] text-slate-800 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
@@ -481,13 +523,13 @@ export default function App() {
                       <div>
                         <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-6">Àrees i Competències</label>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {SUBJECTS.map(s => (
+                          {[...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].map(s => (
                             <button 
                               key={s.id} 
                               onClick={() => setSelectedSubjectIds(p => p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])} 
-                              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${selectedSubjectIds.includes(s.id) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-50 hover:border-blue-200'}`}
+                              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${selectedSubjectIds.includes(s.id) ? `bg-${s.color}-600 text-white border-${s.color}-600 shadow-md` : `bg-white text-slate-500 border-slate-50 hover:border-${s.color}-200`}`}
                             >
-                              <div className={`${selectedSubjectIds.includes(s.id) ? 'text-white' : 'text-blue-500'}`}>
+                              <div className={`${selectedSubjectIds.includes(s.id) ? 'text-white' : `text-${s.color}-500`}`}>
                                 {SUBJECT_ICONS[s.id] || SUBJECT_ICONS.default}
                               </div>
                               <span className="text-[10px] font-bold text-left leading-tight uppercase tracking-tight">
@@ -580,9 +622,14 @@ export default function App() {
                         <input type="number" value={numSessions} onChange={e => setNumSessions(Number(e.target.value))} className="w-16 bg-slate-50 p-2 rounded-lg font-black text-center outline-none border border-slate-100 focus:border-blue-400 text-lg" />
                       </div>
                     </div>
-                    <button onClick={handleGenerateSequence} disabled={sequenceLoading} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-xl shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 transition-all">
-                      {sequenceLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Dissenyar Seqüència Didàctica
-                    </button>
+                    <div className="flex gap-3">
+                      <button onClick={handleAddSession} className="bg-white text-slate-700 border border-slate-200 px-6 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-md hover:bg-slate-50 transition-all active:scale-95">
+                        <Plus size={18} /> Afegir Sessió
+                      </button>
+                      <button onClick={handleGenerateSequence} disabled={sequenceLoading} className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-xl shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 transition-all">
+                        {sequenceLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} Dissenyar amb IA
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-10">
@@ -591,21 +638,18 @@ export default function App() {
                         <div className="bg-slate-900 px-10 py-6 flex flex-col md:flex-row justify-between items-start md:items-center text-white gap-4">
                           <div className="flex items-center gap-4 w-full">
                             <span className="bg-white/10 px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest">Sessió {idx + 1}</span>
-                            <input className="bg-transparent font-black text-white text-xl outline-none border-b border-transparent focus:border-blue-400 placeholder:opacity-40 flex-1" placeholder="Títol de la sessió..." value={session.title} onChange={e => {
-                              const copy = [...detailedActivities];
-                              copy[idx].title = e.target.value;
-                              setDetailedActivities(copy);
-                            }} />
+                            <input className="bg-transparent font-black text-white text-xl outline-none border-b border-transparent focus:border-blue-400 placeholder:opacity-40 flex-1" placeholder="Títol de la sessió..." value={session.title} onChange={e => updateSessionField(idx, 'title', e.target.value)} />
+                          </div>
+                          <div className="flex gap-2">
+                             <button onClick={() => handleMoveSession(idx, 'up')} disabled={idx === 0} className="p-2 hover:bg-white/10 rounded-lg disabled:opacity-20 transition-all" title="Pujar sessió"><ChevronUp size={18} /></button>
+                             <button onClick={() => handleMoveSession(idx, 'down')} disabled={idx === detailedActivities.length - 1} className="p-2 hover:bg-white/10 rounded-lg disabled:opacity-20 transition-all" title="Baixar sessió"><ChevronDown size={18} /></button>
+                             <button onClick={() => handleRemoveSession(idx)} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-all" title="Eliminar sessió"><Trash2 size={18} /></button>
                           </div>
                         </div>
                         <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div className="space-y-4">
                               <span className="block text-[10px] font-black uppercase text-blue-600 tracking-widest ml-2">Objectiu d'Aprenentatge</span>
-                              <textarea className="w-full bg-slate-50 p-6 rounded-2xl text-base font-bold text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" rows={3} value={session.objective} onChange={e => {
-                                const copy = [...detailedActivities];
-                                copy[idx].objective = e.target.value;
-                                setDetailedActivities(copy);
-                              }} />
+                              <textarea className="w-full bg-slate-50 p-6 rounded-2xl text-base font-bold text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" rows={3} value={session.objective} onChange={e => updateSessionField(idx, 'objective', e.target.value)} />
                             </div>
                             <div className="space-y-4">
                               <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Data prevista</span>
@@ -620,21 +664,21 @@ export default function App() {
                                 }} 
                               />
                             </div>
+                            <div className="space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-2">Metodologia</span>
+                              <textarea className="w-full bg-slate-50 p-6 rounded-2xl text-base font-bold text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" rows={3} value={session.methodology} onChange={e => updateSessionField(idx, 'methodology', e.target.value)} />
+                            </div>
+                            <div className="space-y-4">
+                              <span className="block text-[10px] font-black uppercase text-sky-600 tracking-widest ml-2">Avaluació a la sessió</span>
+                              <textarea className="w-full bg-slate-50 p-6 rounded-2xl text-base font-bold text-slate-800 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner" rows={3} value={session.evaluation} onChange={e => updateSessionField(idx, 'evaluation', e.target.value)} />
+                            </div>
                             <div className="md:col-span-2 space-y-4">
-                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Desenvolupament (Activitats)</span>
-                              <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-base font-medium text-slate-700 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner leading-relaxed" rows={8} value={session.steps} onChange={e => {
-                                const copy = [...detailedActivities];
-                                copy[idx].steps = e.target.value;
-                                setDetailedActivities(copy);
-                              }} />
+                              <span className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Desenvolupament detallat (Activitats i narrativa de l'aula)</span>
+                              <textarea className="w-full bg-slate-50 p-8 rounded-[2rem] text-base font-medium text-slate-700 outline-none focus:bg-white transition-all border border-slate-100 focus:border-blue-100 shadow-inner leading-relaxed" rows={8} value={session.steps} onChange={e => updateSessionField(idx, 'steps', e.target.value)} />
                             </div>
                             <div className="md:col-span-2 space-y-4">
                               <span className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-2 flex items-center gap-2"><Sparkles size={14} /> Pautes i Mesures DUA</span>
-                              <textarea className="w-full bg-indigo-50/30 p-8 rounded-[2rem] text-base font-bold text-indigo-900/70 outline-none focus:bg-white transition-all border border-indigo-100 focus:border-indigo-400 shadow-inner leading-relaxed italic" rows={4} value={session.dua} onChange={e => {
-                                const copy = [...detailedActivities];
-                                copy[idx].dua = e.target.value;
-                                setDetailedActivities(copy);
-                              }} />
+                              <textarea className="w-full bg-indigo-50/30 p-8 rounded-[2rem] text-base font-bold text-indigo-900/70 outline-none focus:bg-white transition-all border border-indigo-100 focus:border-indigo-400 shadow-inner leading-relaxed italic" rows={4} value={session.dua} onChange={e => updateSessionField(idx, 'dua', e.target.value)} />
                             </div>
                         </div>
                       </div>
@@ -654,6 +698,7 @@ export default function App() {
 
               {activeTab === 'evaluation' && (
                 <div className="animate-fade-in space-y-12">
+                  {/* ... same evaluation tab code as before ... */}
                   <div className="space-y-8 bg-blue-50/30 p-10 rounded-[2.5rem] border border-blue-100">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                       <div className="flex-1">
@@ -710,7 +755,7 @@ export default function App() {
           </div>
         )}
       </main>
-
+      {/* ... rest of App component ... */}
       {showInspirationModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
           <div className="bg-white rounded-[3rem] p-12 max-w-2xl w-full shadow-2xl animate-scale-in relative border border-blue-50">
@@ -758,6 +803,7 @@ export default function App() {
           activitySubjectIds={viewingActivity.subjectIds || []} 
           onDelete={id => setActivities(p => p.filter(a => a.id !== id))} 
           onEdit={startEditing}
+          onExport={handleExportSingle}
           showNotification={showNotification} 
         />
       )}
@@ -771,10 +817,28 @@ export default function App() {
           <div className="flex items-center gap-8 text-slate-300">
              <School size={24} />
              <div className="h-8 w-px bg-slate-100"></div>
-             <div className="flex items-center gap-2">
-               <button onClick={handleExport} title="Exportar dades" className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Download size={20} /></button>
-               <button onClick={() => fileInputRef.current?.click()} title="Importar dades" className="p-3 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-blue-600 transition-all"><Upload size={20} /></button>
-               <input type="file" ref={fileInputRef} onChange={handleImport} accept="application/json" style={{ display: 'none' }} />
+             <div className="flex items-center gap-4">
+               {/* Sistema de Gestió de Dades */}
+               <div className="flex items-center bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                 <button 
+                  onClick={handleExportAll} 
+                  title="Exportar tota la base de dades" 
+                  className="p-3 hover:bg-white rounded-xl text-slate-400 hover:text-blue-600 transition-all flex items-center gap-2 group"
+                 >
+                   <Download size={18} />
+                   <span className="text-[9px] font-black uppercase tracking-widest hidden lg:block">Backup</span>
+                 </button>
+                 <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                 <button 
+                  onClick={() => fileInputRef.current?.click()} 
+                  title="Importar fitxer JSON" 
+                  className="p-3 hover:bg-white rounded-xl text-slate-400 hover:text-blue-600 transition-all flex items-center gap-2"
+                 >
+                   <Upload size={18} />
+                   <span className="text-[9px] font-black uppercase tracking-widest hidden lg:block">Carregar</span>
+                 </button>
+                 <input type="file" ref={fileInputRef} onChange={handleImport} accept="application/json" style={{ display: 'none' }} />
+               </div>
              </div>
           </div>
         </div>

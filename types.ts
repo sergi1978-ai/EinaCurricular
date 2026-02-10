@@ -33,6 +33,7 @@ export interface CurriculumItem {
   code: string; // e.g., "CE1", "Crit. 1.1"
   text: string;
   type: 'competencia' | 'criteri' | 'saber';
+  subjectId?: string; // Vinculació amb l'àrea
 }
 
 export interface Activity {
@@ -57,13 +58,14 @@ export interface Activity {
 export interface SubjectOption {
   id: string;
   name: string;
+  color: string; // Tailwind color name (ex: 'blue')
   isTransversal?: boolean;
 }
 
 export interface AiResponse {
-  competencies: { code: string; text: string }[];
-  criteria: { code: string; text: string }[];
-  sabers: { code: string; text: string }[];
+  competencies: { code: string; text: string; subjectId?: string }[];
+  criteria: { code: string; text: string; subjectId?: string }[];
+  sabers: { code: string; text: string; subjectId?: string }[];
 }
 
 export interface RelationshipMapItem {

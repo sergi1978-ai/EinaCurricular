@@ -1,37 +1,30 @@
 
 import React, { useState } from 'react';
-import { Activity } from '../types';
+import { Activity, CurriculumItem } from '../types';
 import { 
-  X, Layers, FileText, Trash2, ClipboardCheck, AlertTriangle, Sparkles, Copy, Check, Target, Lightbulb, TrendingUp, BookOpen, Handshake, ScrollText, Pencil
+  X, Layers, FileText, Trash2, ClipboardCheck, AlertTriangle, Sparkles, Copy, Check, Target, Lightbulb, TrendingUp, BookOpen, Handshake, ScrollText, Pencil, Download
 } from 'lucide-react';
-import { SUBJECT_ICONS } from '../constants'; // Import SUBJECT_ICONS from constants
+import { SUBJECT_ICONS, SUBJECTS, TRANSVERSAL_COMPETENCIES } from '../constants';
 
 interface ActivityDetailsModalProps {
   activity: Activity;
   onClose: () => void;
-  activitySubjectIds: string[]; // Changed from subjectIcon
+  activitySubjectIds: string[];
   onDelete?: (id: string) => void;
-  onEdit?: (activity: Activity) => void; // Nova propietat
+  onEdit?: (activity: Activity) => void;
+  onExport?: (activity: Activity) => void;
   showNotification: (message: string, type: 'error' | 'success') => void;
 }
 
-// Helper function to convert basic Markdown to HTML
 const markdownToHtml = (markdownText: string | null | undefined): string => {
   if (markdownText === null || markdownText === undefined) return '';
-
-  const textToProcess = String(markdownText); // Ensure it's a string before calling replace
-
+  const textToProcess = String(markdownText);
   let html = textToProcess
-    // Bold: **text**
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    // Italic: *text*
     .replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-  // Lists: - item or * item
   const lines = html.split('\n');
   let inList = false;
   let processedLines: string[] = [];
-
   lines.forEach(line => {
     const trimmedLine = line.trim();
     if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
@@ -50,19 +43,15 @@ const markdownToHtml = (markdownText: string | null | undefined): string => {
       }
     }
   });
-
-  if (inList) {
-    processedLines.push('</ul>');
-  }
-
+  if (inList) processedLines.push('</ul>');
   return processedLines.join('\n');
 };
 
-const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, onClose, activitySubjectIds, onDelete, onEdit, showNotification }) => {
+const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, onClose, activitySubjectIds, onDelete, onEdit, onExport, showNotification }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copied, setCopied] = useState(false);
   
-  const activityColor = activity.color ? activity.color.replace('emerald', 'blue') : 'bg-blue-600'; 
+  const activityColor = activity.color || 'bg-blue-600'; 
   const textCol = activityColor.replace('bg-', 'text-');
   const lightBg = activityColor.replace('bg-', 'bg-').replace('-600', '-50').replace('-700', '-50');
 
@@ -70,16 +59,20 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
     'competencia': 'Competència Específica',
     'criteri': 'Criteri d\'Avaluació',
     'saber': 'Saber Bàsic'
-  }
+  };
+
+  const getAreaColor = (subjectId?: string) => {
+    if (!subjectId) return 'blue';
+    const all = [...SUBJECTS, ...TRANSVERSAL_COMPETENCIES];
+    const area = all.find(s => s.id === subjectId);
+    return area?.color || 'blue';
+  };
 
   const copyToGoogleDocs = async () => {
     const renderMarkdownForCopy = (text: string) => {
-        // Simple Markdown to HTML for copying, focusing on lists
-        let content = String(text) // Ensure text is a string
+        let content = String(text)
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>');
-        
-        // Convert markdown lists to HTML lists
         const listRegex = /^\s*[\*-]\s+(.*)$/gm;
         if (content.match(listRegex)) {
             content = content.replace(listRegex, '<li>$1</li>');
@@ -165,46 +158,9 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
       showNotification("Contingut copiat al porta-retalls per a Google Docs", "success");
     } catch (err) {
       console.error("Error al copiar:", err);
-      // Fallback a text pla si la còpia HTML falla
-      const plainText = `
-        ${activity.title}
-        ${activity.grade} de Primària • ${activity.subject}
-
-        1. Contextualització i Repte
-        ${activity.description}
-
-        2. Marc Curricular (Decret 175/2022)
-        Competències Específiques:
-        ${(activity.competencies || []).map(c => `${c.code}: ${c.text}`).join('\n')}
-
-        Criteris d'Avaluació:
-        ${(activity.criteria || []).map(c => `${c.code}: ${c.text}`).join('\n')}
-
-        Sabers Bàsics:
-        ${(activity.sabers || []).map(c => `${c.code}: ${c.text}`).join('\n')}
-
-        3. Seqüència Didàctica
-        ${(activity.detailedActivities || []).map((s, i) => `
-          Sessió ${i + 1}: ${s.title} ${activity.sessionDates?.[i] ? `(${new Date(activity.sessionDates[i]).toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })})` : ''}
-          Objectiu: ${s.objective}
-          Metodologia: ${s.methodology}
-          Desenvolupament Detallat: ${s.steps}
-          Mesures DUA: ${s.dua}
-          Avaluació a la Sessió: ${s.evaluation}
-        `).join('\n\n')}
-
-        4. Instruments d'Avaluació
-        ${(activity.evaluationTools || []).map(tool => `
-          ${tool}:
-          ${activity.evaluationToolsContent?.[tool] || 'Contingut no disponible.'}
-        `).join('\n\n')}
-
-        Creat pel Servei Educatiu Vallès Occidental VIII
-      `;
+      const plainText = `${activity.title}\n${activity.grade} de Primària • ${activity.subject}`;
       await navigator.clipboard.writeText(plainText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
-      showNotification("Error al copiar l'HTML, s'ha copiat el text pla.", "error");
+      showNotification("S'ha copiat el text pla (error amb l'HTML).", "error");
     }
   };
 
@@ -249,10 +205,10 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
                 {activity.grade} Primària
               </span>
               <span className="bg-white/60 backdrop-blur-sm px-5 py-2 rounded-xl text-[10px] font-extrabold text-slate-600 flex items-center gap-3 shadow-sm border border-white">
-                <div className="flex gap-2"> {/* Container for multiple icons */}
+                <div className="flex gap-2">
                   {activitySubjectIds.map(id => (
-                    <div key={id} className="text-blue-600">
-                      {SUBJECT_ICONS[id] || <BookOpen size={20} />} {/* Fallback icon */}
+                    <div key={id} className={`text-${getAreaColor(id)}-600`}>
+                      {SUBJECT_ICONS[id] || <BookOpen size={20} />}
                     </div>
                   ))}
                 </div>
@@ -262,22 +218,35 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
             <h2 className="text-3xl font-black text-slate-900 leading-tight tracking-tight break-words">{activity.title}</h2>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {onEdit && (
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                {onEdit && (
+                  <button 
+                    onClick={() => onEdit(activity)} 
+                    className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] bg-white text-amber-600 border-2 border-amber-100 hover:border-amber-400 transition-all shadow-md active:scale-95"
+                  >
+                    <Pencil size={16} /> Editar
+                  </button>
+                )}
+                {onExport && (
+                  <button 
+                    onClick={() => onExport(activity)} 
+                    title="Exportar fitxer JSON"
+                    className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] bg-white text-blue-600 border-2 border-blue-100 hover:border-blue-400 transition-all shadow-md active:scale-95"
+                  >
+                    <Download size={16} /> Compartir
+                  </button>
+                )}
+              </div>
               <button 
-                onClick={() => onEdit(activity)} 
-                className="flex items-center justify-center gap-3 px-8 py-5 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.1em] bg-white text-amber-600 border-2 border-amber-100 hover:border-amber-400 transition-all shadow-md active:scale-95"
+                onClick={copyToGoogleDocs} 
+                className={`flex items-center justify-center gap-4 px-10 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 border-2 ${copied ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-900 text-white border-slate-900 hover:bg-black'}`}
               >
-                <Pencil size={18} /> Editar SA
+                {copied ? <Check size={18} /> : <Copy size={18} />}
+                {copied ? 'Copiat!' : 'Copia per a Google Docs'}
               </button>
-            )}
-            <button 
-              onClick={copyToGoogleDocs} 
-              className={`flex items-center justify-center gap-4 px-10 py-5 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-xl active:scale-95 border-2 ${copied ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-900 text-white border-slate-900 hover:bg-black'}`}
-            >
-              {copied ? <Check size={20} /> : <Copy size={20} />}
-              {copied ? 'Copiat!' : 'Copia per a Google Docs'}
-            </button>
-            <button onClick={onClose} className="p-4 text-slate-300 hover:text-slate-900 hover:bg-white rounded-full transition-all"><X size={36} /></button>
+            </div>
+            <button onClick={onClose} className="p-4 text-slate-300 hover:text-slate-900 hover:bg-white rounded-full transition-all ml-4"><X size={36} /></button>
           </div>
         </div>
 
@@ -292,7 +261,7 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
               </h3>
             </div>
             <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-inner relative overflow-hidden">
-               <p className="text-slate-700 leading-relaxed font-medium italic text-lg markdown-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(activity.description) }} />
+               <div className="text-slate-700 leading-relaxed font-medium italic text-lg markdown-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(activity.description) }} />
             </div>
           </section>
 
@@ -305,22 +274,25 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
             </div>
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
              {[
-               { title: 'Competències Específiques', items: activity.competencies || [], color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
-               { title: 'Criteris d\'Avaluació', items: activity.criteria || [], color: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
-               { title: 'Sabers Bàsics', items: activity.sabers || [], color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' }
+               { title: 'Competències Específiques', items: activity.competencies || [] },
+               { title: 'Criteris d\'Avaluació', items: activity.criteria || [] },
+               { title: 'Sabers Bàsics', items: activity.sabers || [] }
              ].map((sec, i) => (
                <div key={i} className="space-y-4 bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-md">
-                 <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] ${sec.color} px-3 py-1.5 rounded-lg w-fit bg-slate-50 border border-slate-100`}>{sec.title}</h4>
+                 <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 px-3 py-1.5 rounded-lg w-fit bg-slate-50 border border-slate-100`}>{sec.title}</h4>
                  <div className="space-y-3">
-                   {sec.items.map((c: any, cIdx: number) => (
-                     <div key={c.id || cIdx} className={`p-4 ${sec.bg} border ${sec.border} rounded-2xl text-[14px] font-bold leading-relaxed text-slate-800 shadow-sm hover:shadow-md transition-shadow`}>
-                        <span className="block text-[8px] font-black uppercase bg-white text-slate-500 px-2 py-0.5 rounded-md mb-1 w-fit border border-slate-100">
-                          {typeLabelMap[c.type]}
-                        </span>
-                       <span className={`block mb-1 opacity-80 font-black tracking-tight text-[11px] ${sec.color}`}>{c.code}</span>
-                       {c.text}
-                     </div>
-                   ))}
+                   {sec.items.map((c: any, cIdx: number) => {
+                     const areaColor = getAreaColor(c.subjectId);
+                     return (
+                       <div key={c.id || cIdx} className={`p-4 bg-${areaColor}-50 border border-${areaColor}-200 rounded-2xl text-[14px] font-bold leading-relaxed text-slate-800 shadow-sm hover:shadow-md transition-shadow`}>
+                          <span className={`block text-[8px] font-black uppercase bg-${areaColor}-100 text-${areaColor}-700 px-2 py-0.5 rounded-md mb-1 w-fit border border-${areaColor}-200`}>
+                            {typeLabelMap[c.type]}
+                          </span>
+                         <span className={`block mb-1 opacity-80 font-black tracking-tight text-[11px] text-${areaColor}-700`}>{c.code}</span>
+                         {c.text}
+                       </div>
+                     );
+                   })}
                  </div>
                </div>
              ))}
@@ -350,7 +322,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
                       </div>
                     </div>
                     <div className="p-12 space-y-8">
-                      {/* Objectiu d'Aprenentatge */}
                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm">
                         <span className="flex items-center gap-3 text-[10px] font-black uppercase text-blue-700 mb-3 tracking-widest">
                           <Target size={18} /> Objectiu d'Aprenentatge
@@ -358,7 +329,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
                         <p className="text-slate-800 font-extrabold tracking-tight text-lg leading-snug">{session.objective}</p>
                       </div>
 
-                      {/* Metodologia Principal */}
                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm">
                         <span className="flex items-center gap-3 text-[10px] font-black uppercase text-indigo-700 mb-3 tracking-widest">
                           <Lightbulb size={18} /> Metodologia Principal
@@ -366,7 +336,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
                         <p className="font-bold text-indigo-700 leading-relaxed text-base">{session.methodology}</p>
                       </div>
 
-                      {/* Desenvolupament Detallat */}
                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm">
                         <span className="flex items-center gap-3 text-[10px] font-black uppercase text-slate-700 mb-3 tracking-widest">
                           <TrendingUp size={18} /> Desenvolupament Detallat
@@ -374,7 +343,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
                         <div className="font-medium text-slate-600 leading-relaxed text-base markdown-content" dangerouslySetInnerHTML={{ __html: markdownToHtml(session.steps) }} />
                       </div>
 
-                      {/* Mesures Inclusives i DUA */}
                       {session.dua && (
                         <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 shadow-sm">
                           <span className="flex items-center gap-3 text-[10px] font-black uppercase text-indigo-800 mb-3 tracking-widest">
@@ -384,7 +352,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
                         </div>
                       )}
                       
-                      {/* Avaluació a la Sessió */}
                       <div className="bg-sky-50 p-6 rounded-2xl border border-sky-100 shadow-sm">
                         <span className="flex items-center gap-3 text-[10px] font-black uppercase text-sky-700 mb-3 tracking-widest">
                           <ClipboardCheck size={18} /> Avaluació a la Sessió
@@ -480,8 +447,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
         }
-
-        /* Markdown specific styles */
         .markdown-content strong {
           font-weight: 800;
           color: #1e293b;
