@@ -141,10 +141,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
             </div>
           </div>
         `).join('')}
-
-        <div style="margin-top: 70pt; border-top: 1px solid #e2e8f0; padding-top: 20pt; text-align: center; color: #94a3b8; font-size: 9pt;">
-          Dissenyat pel Servei Educatiu Vallès Occidental VIII
-        </div>
       </div>
     `;
 
@@ -388,12 +384,6 @@ const ActivityDetailsModal: React.FC<ActivityDetailsModalProps> = ({ activity, o
               </div>
             </section>
           )}
-
-          <div className="pt-8 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
-              Creat pel Servei Educatiu Vallès Occidental VIII
-            </p>
-          </div>
         </div>
 
         <div className="p-10 bg-slate-50 border-t border-slate-100 flex justify-between px-16 items-center shrink-0">

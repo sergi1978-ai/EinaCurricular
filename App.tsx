@@ -806,11 +806,7 @@ export default function App() {
       )}
       
       <footer className="bg-white border-t border-slate-100 py-10 mt-auto shrink-0">
-        <div className="max-w-[1400px] mx-auto px-10 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex flex-col items-center md:items-start">
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">Desenvolupat per</span>
-            <span className="text-lg font-black text-slate-800">Servei Educatiu Vallès Occidental VIII</span>
-          </div>
+        <div className="max-w-[1400px] mx-auto px-10 flex flex-col md:flex-row justify-end items-center gap-8">
           <div className="flex items-center gap-8 text-slate-300">
              <School size={24} />
              <div className="h-8 w-px bg-slate-100"></div>
