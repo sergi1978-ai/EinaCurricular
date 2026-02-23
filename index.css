@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+:root {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+  background-color: #fcfdfe;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
