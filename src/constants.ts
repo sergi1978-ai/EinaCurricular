@@ -59,3 +59,19 @@ export const SUBJECT_ICONS: Record<string, React.ReactNode> = {
   personal: React.createElement(Smile, { size: 20 }),
   default: React.createElement(GraduationCap, { size: 20 })
 };
+
+export const COLOR_MAP: Record<string, { bg: string, text: string, border: string, hoverBorder: string, lightBg: string }> = {
+  emerald: { bg: 'bg-emerald-600', text: 'text-emerald-600', border: 'border-emerald-600', hoverBorder: 'hover:border-emerald-200', lightBg: 'bg-emerald-100' },
+  orange: { bg: 'bg-orange-600', text: 'text-orange-600', border: 'border-orange-600', hoverBorder: 'hover:border-orange-200', lightBg: 'bg-orange-100' },
+  amber: { bg: 'bg-amber-600', text: 'text-amber-600', border: 'border-amber-600', hoverBorder: 'hover:border-amber-200', lightBg: 'bg-amber-100' },
+  purple: { bg: 'bg-purple-600', text: 'text-purple-600', border: 'border-purple-600', hoverBorder: 'hover:border-purple-200', lightBg: 'bg-purple-100' },
+  blue: { bg: 'bg-blue-600', text: 'text-blue-600', border: 'border-blue-600', hoverBorder: 'hover:border-blue-200', lightBg: 'bg-blue-100' },
+  rose: { bg: 'bg-rose-600', text: 'text-rose-600', border: 'border-rose-600', hoverBorder: 'hover:border-rose-200', lightBg: 'bg-rose-100' },
+  cyan: { bg: 'bg-cyan-600', text: 'text-cyan-600', border: 'border-cyan-600', hoverBorder: 'hover:border-cyan-200', lightBg: 'bg-cyan-100' },
+  teal: { bg: 'bg-teal-600', text: 'text-teal-600', border: 'border-teal-600', hoverBorder: 'hover:border-teal-200', lightBg: 'bg-teal-100' },
+  red: { bg: 'bg-red-600', text: 'text-red-600', border: 'border-red-600', hoverBorder: 'hover:border-red-200', lightBg: 'bg-red-100' },
+  slate: { bg: 'bg-slate-600', text: 'text-slate-600', border: 'border-slate-600', hoverBorder: 'hover:border-slate-200', lightBg: 'bg-slate-100' },
+  indigo: { bg: 'bg-indigo-600', text: 'text-indigo-600', border: 'border-indigo-600', hoverBorder: 'hover:border-indigo-200', lightBg: 'bg-indigo-100' },
+  violet: { bg: 'bg-violet-600', text: 'text-violet-600', border: 'border-violet-600', hoverBorder: 'hover:border-violet-200', lightBg: 'bg-violet-100' },
+  fuchsia: { bg: 'bg-fuchsia-600', text: 'text-fuchsia-600', border: 'border-fuchsia-600', hoverBorder: 'hover:border-fuchsia-200', lightBg: 'bg-fuchsia-100' },
+};

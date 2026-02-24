@@ -5,7 +5,8 @@ import {
   TRANSVERSAL_COMPETENCIES, 
   GRADES, 
   SCHOOL_YEARS, 
-  SUBJECT_ICONS 
+  SUBJECT_ICONS,
+  COLOR_MAP
 } from './constants'; 
 import { 
   getCurriculumSuggestions, 
@@ -521,20 +522,25 @@ export default function App() {
                       <div>
                         <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-6">Àrees i Competències</label>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {[...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].map(s => (
-                            <button 
-                              key={s.id} 
-                              onClick={() => setSelectedSubjectIds(p => p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])} 
-                              className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${selectedSubjectIds.includes(s.id) ? `bg-${s.color}-600 text-white border-${s.color}-600 shadow-md` : `bg-white text-slate-500 border-slate-50 hover:border-${s.color}-200`}`}
-                            >
-                              <div className={`${selectedSubjectIds.includes(s.id) ? 'text-white' : `text-${s.color}-500`}`}>
-                                {SUBJECT_ICONS[s.id] || SUBJECT_ICONS.default}
-                              </div>
-                              <span className="text-[10px] font-bold text-left leading-tight uppercase tracking-tight">
-                                {s.name.split(' (')[0].replace('Coneixement del ', '')}
-                              </span>
-                            </button>
-                          ))}
+                          {[...SUBJECTS, ...TRANSVERSAL_COMPETENCIES].map(s => {
+                            const colors = COLOR_MAP[s.color] || COLOR_MAP.blue;
+                            const isSelected = selectedSubjectIds.includes(s.id);
+                            
+                            return (
+                              <button 
+                                key={s.id} 
+                                onClick={() => setSelectedSubjectIds(p => p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])} 
+                                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${isSelected ? `${colors.bg} text-white ${colors.border} shadow-md` : `bg-white text-slate-500 border-slate-50 ${colors.hoverBorder}`}`}
+                              >
+                                <div className={`${isSelected ? 'text-white' : colors.text}`}>
+                                  {SUBJECT_ICONS[s.id] || SUBJECT_ICONS.default}
+                                </div>
+                                <span className="text-[10px] font-bold text-left leading-tight uppercase tracking-tight">
+                                  {s.name.split(' (')[0].replace('Coneixement del ', '')}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
